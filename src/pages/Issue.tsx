@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -20,6 +20,12 @@ const Issue = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [certificateDetails, setCertificateDetails] = useState<any>(null);
   const [certificateImage, setCertificateImage] = useState<string | null>(null);
+  const [previewKey, setPreviewKey] = useState(0); // Add key to force re-render of preview
+
+  useEffect(() => {
+    // Update preview when form data changes
+    setPreviewKey(prev => prev + 1);
+  }, [title, recipientName, recipientAddress, content]);
 
   const handleImageGenerated = (imageData: string) => {
     setCertificateImage(imageData);
@@ -40,7 +46,7 @@ const Issue = () => {
       if (!certificateImage) {
         toast.info('Generating certificate image...');
         // Give it a moment to generate the image
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
         if (!certificateImage) {
           throw new Error('Failed to generate certificate image');
         }
@@ -161,11 +167,10 @@ const Issue = () => {
               </Card>
               
               <div className="hidden md:block">
-                <div className="bg-white dark:bg-gray-800 shadow-xl p-6 rounded-lg">
+                <div className="bg-white dark:bg-gray-800 shadow-xl p-6 rounded-lg relative h-full">
                   <h3 className="text-lg font-medium mb-4">Certificate Preview</h3>
-                  <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 overflow-hidden">
-                    {/* Add a scaled-down version of the certificate for preview */}
-                    <div className="transform scale-[0.4] origin-top-left ml-[-240px] mt-[-180px]">
+                  <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 overflow-hidden" style={{ height: '400px' }}>
+                    <div style={{ transform: 'scale(0.45)', transformOrigin: 'top left', width: '800px', height: '600px', position: 'absolute' }} key={previewKey}>
                       <CertificateGenerator
                         title={title || "Certificate Title"}
                         recipientName={recipientName || "Recipient Name"}
@@ -205,7 +210,7 @@ const Issue = () => {
                     <img 
                       src={certificateImage} 
                       alt="Certificate" 
-                      className="mx-auto rounded-lg shadow-lg max-w-md"
+                      className="mx-auto rounded-lg shadow-lg max-w-full h-auto"
                     />
                   </div>
                 )}

@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -29,11 +30,11 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
       // Small delay to ensure the DOM has fully rendered
       const timeoutId = setTimeout(() => {
         generateImage();
-      }, 100);
+      }, 300); // Increased delay to ensure proper rendering
       
       return () => clearTimeout(timeoutId);
     }
-  }, [title, recipientAddress, recipientName, content, date]);
+  }, [title, recipientAddress, recipientName, content, date, onImageGenerated]);
   
   const generateImage = async () => {
     if (!certificateRef.current || !onImageGenerated) return;
@@ -45,6 +46,15 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
         backgroundColor: null,
         scale: 2, // Higher resolution
         logging: false,
+        allowTaint: true,
+        useCORS: true,
+        onclone: (clonedDoc) => {
+          // Ensure all fonts are loaded in the cloned document
+          const clonedElement = clonedDoc.body.querySelector('.certificate-container');
+          if (clonedElement) {
+            clonedElement.classList.add('ready-for-capture');
+          }
+        }
       });
       
       const imageData = canvas.toDataURL('image/png');
@@ -55,10 +65,11 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
   };
   
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative w-[800px] h-[600px]", className)}>
       <div 
         ref={certificateRef}
-        className="certificate-container w-[800px] h-[600px] p-12 bg-gradient-to-br from-white to-gray-50 border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"
+        className="certificate-container w-full h-full p-12 bg-gradient-to-br from-white to-gray-50 border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"
+        style={{ position: 'relative' }} // Ensure position is set for framer-motion
       >
         {/* Certificate header */}
         <div className="absolute top-0 left-0 w-full h-16 bg-solana-purple/10"></div>
@@ -68,19 +79,19 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
           <svg width="300" height="300" viewBox="0 0 128 114" xmlns="http://www.w3.org/2000/svg">
             <path d="M113.6 36.4H14.2c-1.8 0-3.4 1-4.3 2.6-.8 1.6-.7 3.4.2 4.9l14.7 21.4c.7 1.1 2 1.7 3.4 1.7h87c1.8 0 3.4-1 4.3-2.6.8-1.6.7-3.4-.2-4.9l-14.7-21.4c-.7-1.1-2-1.7-3.4-1.7h-1.4z" fill="#000000"/>
             <path d="M14.2 76.9h99.4c1.8 0 3.4-1 4.3-2.6.8-1.6.7-3.4-.2-4.9L103 48c-.7-1.1-2-1.7-3.4-1.7h-87c-1.8 0-3.4 1-4.3 2.6-.8 1.6-.7 3.4.2 4.9l14.7 21.4c.7 1.1 2 1.7 3.4 1.7h-12.4z" fill="#000000"/>
-            <path d="M113.6 113.1H14.2c-1.8 0-3.4-1-4.3-2.6-.8-1.6-.7-3.4.2 4.9l14.7-21.4c.7-1.1 2-1.7 3.4-1.7h87c1.8 0 3.4 1 4.3 2.6.8 1.6.7 3.4-.2 4.9l-14.7 21.4c-.7 1.1-2 1.7-3.4 1.7h10.4z" fill="#000000"/>
+            <path d="M113.6 113.1H14.2c-1.8 0-3.4-1-4.3-2.6-.8-1.6-.7-3.4.2-4.9l14.7-21.4c.7-1.1 2-1.7 3.4-1.7h87c1.8 0 3.4 1 4.3 2.6.8 1.6.7 3.4-.2 4.9l-14.7 21.4c-.7 1.1-2 1.7-3.4 1.7h10.4z" fill="#000000"/>
             <path d="M14.2 0h99.4c1.8 0 3.4 1 4.3 2.6.8 1.6.7 3.4-.2 4.9L103 28.9c-.7 1.1-2 1.7-3.4-1.7h-87c-1.8 0-3.4-1-4.3-2.6-.8-1.6-.7-3.4.2-4.9L23.2 1.7c.7-1.1 2-1.7 3.4-1.7H14.2z" fill="#000000"/>
           </svg>
         </div>
         
         {/* Certificate content */}
-        <div className="flex flex-col items-center justify-between h-full">
-          <div className="text-center space-y-3">
+        <div className="flex flex-col items-center justify-between h-full z-10 relative">
+          <div className="text-center space-y-3 w-full">
             <h2 className="text-2xl font-bold text-gray-800">Certificate of Achievement</h2>
             <h1 className="text-3xl font-bold text-solana-purple">{title}</h1>
           </div>
           
-          <div className="text-center space-y-6 my-8">
+          <div className="text-center space-y-6 my-8 w-full">
             <p className="text-lg">This certifies that</p>
             <p className="text-2xl font-bold">{recipientName || "Recipient"}</p>
             <p className="text-lg">has successfully completed the requirements</p>
