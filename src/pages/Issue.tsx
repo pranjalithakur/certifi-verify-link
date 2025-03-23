@@ -42,17 +42,220 @@ const Issue = () => {
     setIsIssuing(true);
     
     try {
-      // Wait for the certificate image to be generated if it hasn't already
-      if (!certificateImage) {
-        toast.info('Generating certificate image...');
-        // Give it a moment to generate the image
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        if (!certificateImage) {
-          throw new Error('Failed to generate certificate image');
-        }
-      }
+      // Generate full-size certificate for NFT minting
+      const certificateElement = document.createElement('div');
+      certificateElement.style.width = '800px';
+      certificateElement.style.height = '600px';
+      certificateElement.style.position = 'absolute';
+      certificateElement.style.left = '-9999px';
+      certificateElement.style.top = '-9999px';
+      document.body.appendChild(certificateElement);
       
-      const result = await issueCertificate(title, recipientAddress, content, certificateImage);
+      // Create a temporary container for the full-sized certificate
+      const tempContainer = document.createElement('div');
+      tempContainer.style.width = '800px';
+      tempContainer.style.height = '600px';
+      document.body.appendChild(tempContainer);
+      
+      // Render the generator component to the temporary container
+      const html2canvas = (await import('html2canvas')).default;
+      
+      // Wait for fonts to load
+      await document.fonts.ready;
+      
+      // Create a div with certificate content
+      const certDiv = document.createElement('div');
+      certDiv.className = 'certificate-for-nft';
+      certDiv.style.width = '800px';
+      certDiv.style.height = '600px';
+      certDiv.style.backgroundColor = 'white';
+      certDiv.style.padding = '40px';
+      certDiv.style.border = '8px solid rgba(145, 85, 253, 0.2)';
+      certDiv.style.borderRadius = '12px';
+      certDiv.style.position = 'relative';
+      certDiv.style.boxSizing = 'border-box';
+      
+      // Header
+      const header = document.createElement('div');
+      header.style.textAlign = 'center';
+      header.style.marginBottom = '40px';
+      
+      const certTitle = document.createElement('h2');
+      certTitle.textContent = 'Certificate of Achievement';
+      certTitle.style.fontSize = '24px';
+      certTitle.style.fontWeight = 'bold';
+      certTitle.style.color = '#333';
+      certTitle.style.marginBottom = '12px';
+      
+      const mainTitle = document.createElement('h1');
+      mainTitle.textContent = title;
+      mainTitle.style.fontSize = '30px';
+      mainTitle.style.fontWeight = 'bold';
+      mainTitle.style.color = '#9155FD';
+      
+      header.appendChild(certTitle);
+      header.appendChild(mainTitle);
+      
+      // Body
+      const body = document.createElement('div');
+      body.style.textAlign = 'center';
+      body.style.marginBottom = '40px';
+      
+      const intro = document.createElement('p');
+      intro.textContent = 'This certifies that';
+      intro.style.fontSize = '18px';
+      intro.style.marginBottom = '12px';
+      
+      const name = document.createElement('p');
+      name.textContent = recipientName || 'Recipient';
+      name.style.fontSize = '24px';
+      name.style.fontWeight = 'bold';
+      name.style.marginBottom = '12px';
+      
+      const completed = document.createElement('p');
+      completed.textContent = 'has successfully completed the requirements';
+      completed.style.fontSize = '18px';
+      completed.style.marginBottom = '12px';
+      
+      const description = document.createElement('p');
+      description.textContent = content;
+      description.style.fontSize = '16px';
+      description.style.color = '#666';
+      description.style.maxWidth = '80%';
+      description.style.margin = '0 auto';
+      
+      body.appendChild(intro);
+      body.appendChild(name);
+      body.appendChild(completed);
+      body.appendChild(description);
+      
+      // Footer
+      const footer = document.createElement('div');
+      footer.style.display = 'flex';
+      footer.style.justifyContent = 'space-between';
+      footer.style.alignItems = 'flex-end';
+      footer.style.marginTop = '40px';
+      
+      const dateDiv = document.createElement('div');
+      const dateLabel = document.createElement('p');
+      dateLabel.textContent = 'Date Issued';
+      dateLabel.style.fontSize = '14px';
+      dateLabel.style.color = '#666';
+      dateLabel.style.marginBottom = '4px';
+      
+      const dateValue = document.createElement('p');
+      dateValue.textContent = new Date().toLocaleDateString();
+      dateValue.style.fontWeight = '500';
+      
+      dateDiv.appendChild(dateLabel);
+      dateDiv.appendChild(dateValue);
+      
+      const signatureDiv = document.createElement('div');
+      signatureDiv.style.display = 'flex';
+      signatureDiv.style.flexDirection = 'column';
+      signatureDiv.style.alignItems = 'center';
+      
+      const signatureLine = document.createElement('div');
+      signatureLine.style.width = '160px';
+      signatureLine.style.height = '2px';
+      signatureLine.style.backgroundColor = 'black';
+      signatureLine.style.marginBottom = '8px';
+      
+      const signatureLabel = document.createElement('p');
+      signatureLabel.textContent = 'Authorized Signature';
+      signatureLabel.style.fontWeight = '500';
+      
+      signatureDiv.appendChild(signatureLine);
+      signatureDiv.appendChild(signatureLabel);
+      
+      const addressDiv = document.createElement('div');
+      addressDiv.style.textAlign = 'right';
+      
+      const addressLabel = document.createElement('p');
+      addressLabel.textContent = 'Recipient Address';
+      addressLabel.style.fontSize = '14px';
+      addressLabel.style.color = '#666';
+      addressLabel.style.marginBottom = '4px';
+      
+      const addressValue = document.createElement('p');
+      addressValue.textContent = recipientAddress;
+      addressValue.style.fontFamily = 'monospace';
+      addressValue.style.fontSize = '12px';
+      addressValue.style.maxWidth = '150px';
+      addressValue.style.overflow = 'hidden';
+      addressValue.style.textOverflow = 'ellipsis';
+      
+      addressDiv.appendChild(addressLabel);
+      addressDiv.appendChild(addressValue);
+      
+      footer.appendChild(dateDiv);
+      footer.appendChild(signatureDiv);
+      footer.appendChild(addressDiv);
+      
+      // Solana logo watermark
+      const watermark = document.createElement('div');
+      watermark.style.position = 'absolute';
+      watermark.style.inset = '0';
+      watermark.style.display = 'flex';
+      watermark.style.alignItems = 'center';
+      watermark.style.justifyContent = 'center';
+      watermark.style.opacity = '0.05';
+      watermark.style.pointerEvents = 'none';
+      watermark.style.zIndex = '0';
+      watermark.innerHTML = `<svg width="300" height="300" viewBox="0 0 128 114" xmlns="http://www.w3.org/2000/svg">
+        <path d="M113.6 36.4H14.2c-1.8 0-3.4 1-4.3 2.6-.8 1.6-.7 3.4.2 4.9l14.7 21.4c.7 1.1 2 1.7 3.4 1.7h87c1.8 0 3.4-1 4.3-2.6.8-1.6.7-3.4-.2-4.9l-14.7-21.4c-.7-1.1-2-1.7-3.4-1.7h-1.4z" fill="#000000"/>
+        <path d="M14.2 76.9h99.4c1.8 0 3.4-1 4.3-2.6.8-1.6.7-3.4-.2-4.9L103 48c-.7-1.1-2-1.7-3.4-1.7h-87c-1.8 0-3.4 1-4.3 2.6-.8 1.6-.7 3.4.2 4.9l14.7 21.4c.7 1.1 2 1.7 3.4 1.7h-12.4z" fill="#000000"/>
+        <path d="M113.6 113.1H14.2c-1.8 0-3.4-1-4.3-2.6-.8-1.6-.7-3.4.2-4.9l14.7-21.4c.7-1.1 2-1.7 3.4-1.7h87c1.8 0 3.4 1 4.3 2.6.8 1.6.7 3.4-.2 4.9l-14.7 21.4c-.7 1.1-2 1.7-3.4 1.7h10.4z" fill="#000000"/>
+        <path d="M14.2 0h99.4c1.8 0 3.4 1 4.3 2.6.8 1.6.7 3.4-.2 4.9L103 28.9c-.7 1.1-2 1.7-3.4-1.7h-87c-1.8 0-3.4-1-4.3-2.6-.8-1.6-.7-3.4.2-4.9L23.2 1.7c.7-1.1 2-1.7 3.4-1.7H14.2z" fill="#000000"/>
+      </svg>`;
+      
+      // Add the header bar
+      const headerBar = document.createElement('div');
+      headerBar.style.position = 'absolute';
+      headerBar.style.top = '0';
+      headerBar.style.left = '0';
+      headerBar.style.width = '100%';
+      headerBar.style.height = '64px';
+      headerBar.style.backgroundColor = 'rgba(145, 85, 253, 0.1)';
+      headerBar.style.zIndex = '1';
+      
+      // Assemble the certificate
+      certDiv.appendChild(headerBar);
+      certDiv.appendChild(watermark);
+      
+      const content = document.createElement('div');
+      content.style.position = 'relative';
+      content.style.zIndex = '2';
+      content.style.height = '100%';
+      content.style.display = 'flex';
+      content.style.flexDirection = 'column';
+      content.style.justifyContent = 'space-between';
+      
+      content.appendChild(header);
+      content.appendChild(body);
+      content.appendChild(footer);
+      
+      certDiv.appendChild(content);
+      
+      tempContainer.appendChild(certDiv);
+      
+      // Generate the image
+      const canvas = await html2canvas(certDiv, {
+        backgroundColor: 'white',
+        scale: 2,
+        logging: false,
+        allowTaint: true,
+        useCORS: true,
+      });
+      
+      const imageData = canvas.toDataURL('image/png');
+      setCertificateImage(imageData);
+      
+      // Clean up
+      document.body.removeChild(tempContainer);
+      
+      // Issue the certificate with the generated image
+      const result = await issueCertificate(title, recipientAddress, content, imageData);
       
       if (result) {
         setCertificateDetails(result);
@@ -169,14 +372,14 @@ const Issue = () => {
               <div className="hidden md:block">
                 <div className="bg-white dark:bg-gray-800 shadow-xl p-6 rounded-lg relative h-full">
                   <h3 className="text-lg font-medium mb-4">Certificate Preview</h3>
-                  <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-2 overflow-hidden" style={{ height: '400px' }}>
-                    <div style={{ transform: 'scale(0.45)', transformOrigin: 'top left', width: '800px', height: '600px', position: 'absolute' }} key={previewKey}>
+                  <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 overflow-hidden" style={{ height: '400px' }}>
+                    <div style={{ transform: 'scale(0.45)', transformOrigin: 'top left', position: 'relative', width: '800px', height: '600px' }} key={previewKey}>
                       <CertificateGenerator
                         title={title || "Certificate Title"}
                         recipientName={recipientName || "Recipient Name"}
                         recipientAddress={recipientAddress || "Wallet Address"}
                         content={content || "Certificate description and details will appear here."}
-                        onImageGenerated={handleImageGenerated}
+                        forPreview={true}
                       />
                     </div>
                   </div>
@@ -206,11 +409,11 @@ const Issue = () => {
                 </p>
                 
                 {certificateImage && (
-                  <div className="mb-8">
+                  <div className="mb-8 rounded-lg overflow-hidden shadow-lg max-w-xl mx-auto">
                     <img 
                       src={certificateImage} 
                       alt="Certificate" 
-                      className="mx-auto rounded-lg shadow-lg max-w-full h-auto"
+                      className="w-full h-auto"
                     />
                   </div>
                 )}
