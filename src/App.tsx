@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Issue from "./pages/Issue";
 import Verify from "./pages/Verify";
 import NotFound from "./pages/NotFound";
+import Navbar from "./components/Navbar";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Navbar />
         <AnimatePresence mode="wait">
           <Routes>
             <Route path="/" element={<Index />} />

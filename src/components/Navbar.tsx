@@ -8,7 +8,16 @@ import WalletConnect from './WalletConnect';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
+  
+  // Safe way to access location that works even when not inside a Router
+  let location;
+  try {
+    location = useLocation();
+  } catch (e) {
+    // If useLocation() fails, we're not in a Router context
+    // Set a default value that won't break the component
+    location = { pathname: '/' };
+  }
   
   useEffect(() => {
     const handleScroll = () => {
