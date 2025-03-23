@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -20,15 +19,16 @@ const Issue = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [certificateDetails, setCertificateDetails] = useState<any>(null);
   const [certificateImage, setCertificateImage] = useState<string | null>(null);
-  const [previewKey, setPreviewKey] = useState(0); // Add key to force re-render of preview
+  const [previewKey, setPreviewKey] = useState(0);
+  const [displayImage, setDisplayImage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Update preview when form data changes
     setPreviewKey(prev => prev + 1);
   }, [title, recipientName, recipientAddress, content]);
 
   const handleImageGenerated = (imageData: string) => {
     setCertificateImage(imageData);
+    setDisplayImage(imageData);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,10 +42,8 @@ const Issue = () => {
     setIsIssuing(true);
     
     try {
-      // Wait for the certificate image to be generated if it hasn't already
       if (!certificateImage) {
         toast.info('Generating certificate image...');
-        // Give it a moment to generate the image
         await new Promise(resolve => setTimeout(resolve, 1500));
         if (!certificateImage) {
           throw new Error('Failed to generate certificate image');
@@ -55,8 +53,12 @@ const Issue = () => {
       const result = await issueCertificate(title, recipientAddress, content, certificateImage);
       
       if (result) {
-        setCertificateDetails(result);
+        setCertificateDetails({
+          ...result,
+          issuedTo: recipientName || "Recipient"
+        });
         setIsSuccess(true);
+        setDisplayImage(certificateImage);
         toast.success('Certificate issued successfully as an NFT!');
       } else {
         toast.error('Failed to issue certificate');
@@ -77,6 +79,7 @@ const Issue = () => {
     setIsSuccess(false);
     setCertificateDetails(null);
     setCertificateImage(null);
+    setDisplayImage(null);
   };
 
   return (
@@ -205,22 +208,22 @@ const Issue = () => {
                   The certificate has been issued as an NFT on the Solana blockchain and can now be verified by the recipient.
                 </p>
                 
-                {certificateImage && (
-                  <div className="mb-8">
+                {displayImage && (
+                  <div className="mb-8 border-4 border-solana-purple/20 rounded-lg shadow-lg overflow-hidden max-w-lg mx-auto">
                     <img 
-                      src={certificateImage} 
+                      src={displayImage} 
                       alt="Certificate" 
-                      className="mx-auto rounded-lg shadow-lg max-w-full h-auto"
+                      className="w-full h-auto"
                     />
                   </div>
                 )}
                 
                 <div className="mb-8">
                   <CertificateCard
-                    title={certificateDetails?.title || "Certificate"}
+                    title={title || "Certificate"}
                     issuer={certificateDetails?.issuer || "Issuer"}
-                    issuedTo={certificateDetails?.issuedTo || "Recipient"}
-                    date={certificateDetails?.date || new Date().toLocaleDateString()}
+                    issuedTo={recipientName || "Recipient"}
+                    date={new Date().toLocaleDateString()}
                     className="max-w-md mx-auto"
                   />
                 </div>

@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -30,7 +29,7 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
       // Small delay to ensure the DOM has fully rendered
       const timeoutId = setTimeout(() => {
         generateImage();
-      }, 300); // Increased delay to ensure proper rendering
+      }, 500); // Increased delay to ensure proper rendering
       
       return () => clearTimeout(timeoutId);
     }
@@ -43,8 +42,8 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
       // Import html2canvas dynamically to keep bundle size small
       const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(certificateRef.current, {
-        backgroundColor: null,
-        scale: 2, // Higher resolution
+        backgroundColor: '#ffffff',
+        scale: 3, // Higher resolution for clarity
         logging: false,
         allowTaint: true,
         useCORS: true,
@@ -53,6 +52,12 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
           const clonedElement = clonedDoc.body.querySelector('.certificate-container');
           if (clonedElement) {
             clonedElement.classList.add('ready-for-capture');
+            // Force styles to be fully applied
+            Array.from(clonedDoc.fonts).forEach(font => {
+              if (!font.loaded) {
+                console.log('Waiting for font to load:', font.family);
+              }
+            });
           }
         }
       });
@@ -68,8 +73,7 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
     <div className={cn("relative w-[800px] h-[600px]", className)}>
       <div 
         ref={certificateRef}
-        className="certificate-container w-full h-full p-12 bg-gradient-to-br from-white to-gray-50 border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"
-        style={{ position: 'relative' }} // Ensure position is set for framer-motion
+        className="certificate-container w-full h-full p-12 bg-white border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"
       >
         {/* Certificate header */}
         <div className="absolute top-0 left-0 w-full h-16 bg-solana-purple/10"></div>
