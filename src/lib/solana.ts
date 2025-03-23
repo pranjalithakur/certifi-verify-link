@@ -1,4 +1,3 @@
-
 // This is a placeholder for actual Solana integration
 // In a real application, you would use @solana/web3.js and 
 // possibly @solana/wallet-adapter-react
@@ -15,16 +14,19 @@ export interface Certificate {
     issuerAddress: string;
     recipientAddress: string;
     tokenId?: string;
+    mintAddress?: string;
+    imageUrl?: string;
   };
 }
 
-// Mock function to simulate issuing a certificate
+// Mock function to simulate issuing a certificate as an NFT
 export const issueCertificate = async (
   title: string,
   recipientAddress: string,
-  content: string
+  content: string,
+  certificateImage?: string | null
 ): Promise<Certificate | null> => {
-  // This would be a Solana transaction in a real app
+  // This would be a Solana transaction to mint an NFT in a real app
   return new Promise((resolve) => {
     setTimeout(() => {
       const certificate: Certificate = {
@@ -37,10 +39,13 @@ export const issueCertificate = async (
         metadata: {
           issuerAddress: "Iss3RKe2a3j8hA5E1a578Vk1d9M1n",
           recipientAddress,
+          tokenId: "NFT_" + Math.random().toString(36).substring(2, 10),
+          mintAddress: "So1" + Math.random().toString(36).substring(2, 10),
+          imageUrl: certificateImage || undefined,
         }
       };
       resolve(certificate);
-    }, 1000);
+    }, 2000); // Simulating the time it takes to mint an NFT
   });
 };
 
@@ -111,6 +116,7 @@ export const getCertificatesIssuedByAddress = async (address: string): Promise<C
             issuerAddress: address,
             recipientAddress: "4L1c3J0hNs0nS0L4n44ddr3ss",
             tokenId: "token789",
+            mintAddress: "So1NFT789456",
           }
         },
         {
@@ -124,10 +130,22 @@ export const getCertificatesIssuedByAddress = async (address: string): Promise<C
             issuerAddress: address,
             recipientAddress: "B0bSm1thS0L4n44ddr3ss123",
             tokenId: "token101",
+            mintAddress: "So1NFT101112",
           }
         }
       ];
       resolve(certificates);
     }, 1000);
+  });
+};
+
+// Function to handle the NFT certificate verification
+export const verifyCertificateNFT = async (mintAddress: string): Promise<boolean> => {
+  // This would verify the NFT on Solana blockchain in a real app
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const isVerified = Math.random() < 0.9;
+      resolve(isVerified);
+    }, 1500);
   });
 };
