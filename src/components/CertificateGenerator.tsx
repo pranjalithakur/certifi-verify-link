@@ -11,7 +11,6 @@ interface CertificateGeneratorProps {
   date?: string;
   onImageGenerated?: (imageData: string) => void;
   className?: string;
-  forPreview?: boolean;
 }
 
 const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
@@ -22,21 +21,20 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
   date = new Date().toLocaleDateString(),
   onImageGenerated,
   className,
-  forPreview = false,
 }) => {
   const certificateRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    // Only generate image when not in preview mode and all values are populated
-    if (!forPreview && title && recipientAddress && content && certificateRef.current && onImageGenerated) {
+    // Generate image once all values are populated
+    if (title && recipientAddress && content && certificateRef.current && onImageGenerated) {
       // Small delay to ensure the DOM has fully rendered
       const timeoutId = setTimeout(() => {
         generateImage();
-      }, 500); // Increased delay to ensure proper rendering
+      }, 300); // Increased delay to ensure proper rendering
       
       return () => clearTimeout(timeoutId);
     }
-  }, [title, recipientAddress, recipientName, content, date, onImageGenerated, forPreview]);
+  }, [title, recipientAddress, recipientName, content, date, onImageGenerated]);
   
   const generateImage = async () => {
     if (!certificateRef.current || !onImageGenerated) return;
@@ -44,38 +42,23 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
     try {
       // Import html2canvas dynamically to keep bundle size small
       const html2canvas = (await import('html2canvas')).default;
-      
-      // Force any animations to complete
-      document.fonts.ready.then(async () => {
-        const canvas = await html2canvas(certificateRef.current, {
-          backgroundColor: 'white',
-          scale: 2, // Higher resolution
-          logging: false,
-          allowTaint: true,
-          useCORS: true,
-          removeContainer: false, // Don't remove the cloned element to prevent issues
-          onclone: (clonedDoc) => {
-            // Ensure all fonts are loaded in the cloned document
-            const clonedElement = clonedDoc.body.querySelector('.certificate-container');
-            if (clonedElement) {
-              clonedElement.classList.add('ready-for-capture');
-              
-              // Force absolute positioning for all elements in the cloned document
-              const elements = clonedElement.querySelectorAll('*');
-              elements.forEach((el) => {
-                if (el instanceof HTMLElement) {
-                  // Make sure animations are completed
-                  el.style.animationPlayState = 'paused';
-                  el.style.transition = 'none';
-                }
-              });
-            }
+      const canvas = await html2canvas(certificateRef.current, {
+        backgroundColor: null,
+        scale: 2, // Higher resolution
+        logging: false,
+        allowTaint: true,
+        useCORS: true,
+        onclone: (clonedDoc) => {
+          // Ensure all fonts are loaded in the cloned document
+          const clonedElement = clonedDoc.body.querySelector('.certificate-container');
+          if (clonedElement) {
+            clonedElement.classList.add('ready-for-capture');
           }
-        });
-        
-        const imageData = canvas.toDataURL('image/png');
-        onImageGenerated(imageData);
+        }
       });
+      
+      const imageData = canvas.toDataURL('image/png');
+      onImageGenerated(imageData);
     } catch (error) {
       console.error("Error generating certificate image:", error);
     }
@@ -85,7 +68,8 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
     <div className={cn("relative w-[800px] h-[600px]", className)}>
       <div 
         ref={certificateRef}
-        className="certificate-container w-full h-full p-12 bg-white border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"
+        className="certificate-container w-full h-full p-12 bg-gradient-to-br from-white to-gray-50 border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"
+        style={{ position: 'relative' }} // Ensure position is set for framer-motion
       >
         {/* Certificate header */}
         <div className="absolute top-0 left-0 w-full h-16 bg-solana-purple/10"></div>
@@ -102,7 +86,7 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
         
         {/* Certificate content */}
         <div className="flex flex-col items-center justify-between h-full z-10 relative">
-          <div className="text-center space-y-3 w-full pt-6">
+          <div className="text-center space-y-3 w-full">
             <h2 className="text-2xl font-bold text-gray-800">Certificate of Achievement</h2>
             <h1 className="text-3xl font-bold text-solana-purple">{title}</h1>
           </div>
