@@ -256,7 +256,7 @@
 
 // export default Issue;
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Connection, PublicKey, Keypair } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
@@ -265,6 +265,7 @@ import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_I
 import {
   findMetadataPda,
   findMasterEditionPda,
+  mplTokenMetadata,
   MPL_TOKEN_METADATA_PROGRAM_ID,
 } from "@metaplex-foundation/mpl-token-metadata";
 import CertificateGenerator from "@/components/CertificateGenerator";
@@ -276,26 +277,43 @@ import { PINATA_CONFIG, SOLANA_CONFIG } from "@/config";
 
 const Issue = () => {
   const wallet = useWallet();
-  const connection = new Connection(SOLANA_CONFIG.RPC_URL, "confirmed");
+  const [connection, setConnection] = useState<Connection | null>(null);
+
+  useEffect(() => {
+    const conn = new Connection(import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com");
+    setConnection(conn);
+  }, []);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    title: "",
+    recipientName: "",
+    recipientAddress: "",
+    content: "",
+    date: new Date().toLocaleDateString(),
+    certificateImage: "",
+  });
 
   // Set up Anchor provider using the connected wallet
-  const provider = new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions());
-  anchor.setProvider(provider);
+  // const provider = new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions());
+  // anchor.setProvider(provider);
+  const provider = connection ? 
+    new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions()) : 
+    null;
+
+  // Only set provider when it's available
+  useEffect(() => {
+    if (provider) {
+      anchor.setProvider(provider);
+    }
+  }, [provider]);
 
   // Program details (update your IDL as needed)
   const programId = new PublicKey(SOLANA_CONFIG.PROGRAM_ID);
 
-  const program = new anchor.Program(idl as anchor.Idl, programId, provider);
+  // const program = new anchor.Program(idl as anchor.Idl, programId, provider);
+  const program = provider ? new anchor.Program(idl as anchor.Idl, programId, provider) : null;
 
-  // Form state – collects title, recipient name, certificate content, etc.
-  const [formData, setFormData] = useState({
-    title: "",
-    recipientName: "",
-    recipientAddress: wallet.publicKey?.toBase58() || "",
-    content: "",
-    date: new Date().toLocaleDateString(),
-    certificateImage: "", // Data URL generated from CertificateGenerator
-  });
 
   const [minting, setMinting] = useState(false);
   const [txSignature, setTxSignature] = useState("");
@@ -367,16 +385,24 @@ const Issue = () => {
   // ----------------------- Form Submission -----------------------
 
   const handleIssue = async (e: React.FormEvent) => {
-    import.meta.env.VITE_PINATA_API_KEY,
     e.preventDefault();
     if (!wallet.publicKey) {
       alert("Please connect your wallet first!");
+      return;
+    }
+    if (!connection) {
+      alert("Waiting for connection to Solana network...");
+      return;
+    }
+    if (!program) {
+      alert("Program not initialized. Please try again.");
       return;
     }
     if (!formData.certificateImage) {
       alert("Certificate image not generated yet!");
       return;
     }
+    
     setMinting(true);
     try {
       // 1. Convert the generated certificate image (data URL) to a Blob
@@ -410,8 +436,11 @@ const Issue = () => {
       const associatedTokenAccount = await getAssociatedTokenAddress(mint.publicKey, wallet.publicKey);
 
       // 7. Derive the metadata and master edition PDAs from the mint
-      const umi = createUmi(import.meta.env.VITE_SOLANA_RPC_URL!)
-        .use(walletAdapterIdentity(wallet));
+      // const umi = createUmi(import.meta.env.VITE_SOLANA_RPC_URL!)
+      //   .use(walletAdapterIdentity(wallet));
+      const umi = createUmi(import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com")
+        .use(walletAdapterIdentity(wallet as any))
+        .use(mplTokenMetadata());
 
       const metadataAccount = findMetadataPda(umi, { 
         mint: publicKey(mint.publicKey.toString()) 
@@ -427,7 +456,8 @@ const Issue = () => {
       // • metadataURI (from Pinata) as the NFT URI,
       // • formData.content as the certificate description.
       const tx = await program.methods
-        .initNft(formData.title, metadataURI, formData.content)
+        // .initNft(formData.title, metadataURI, formData.content)
+        .initNft(formData.title, "CERT", metadataURI)
         .accounts({
           signer: wallet.publicKey,
           mint: mint.publicKey,
@@ -526,14 +556,28 @@ const Issue = () => {
             }
           />
         </div>
-        <button type="submit" className="bg-solana-purple text-white px-4 py-2 rounded" disabled={minting}>
+        <button type="submit" className="bg-solana-purple text-white px-4 py-2 rounded" disabled={minting || !connection || !program || !wallet.publicKey}>
           {minting ? "Issuing..." : "Issue Certificate"}
         </button>
+        {!wallet.publicKey && (
+          <p className="text-red-500">Please connect your wallet first</p>
+        )}
+        {!connection && (
+          <p className="text-yellow-500">Connecting to Solana network...</p>
+        )}
       </form>
       {txSignature && (
         <div className="mt-4">
           <p className="text-green-600">Transaction Signature: {txSignature}</p>
-      </div>
+          <a 
+            href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 underline"
+          >
+            View on Solana Explorer
+          </a>
+        </div>
       )}
     </div>
   );
