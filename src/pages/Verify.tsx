@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { verifyCertificate, getCertificatesForAddress } from '@/lib/solana';
 import Navbar from '@/components/Navbar';
 import CertificateCard from '@/components/CertificateCard';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { SOLANA_CONFIG } from '@/config';
 
 const Verify = () => {
   const [certId, setCertId] = useState('');
@@ -18,6 +20,7 @@ const Verify = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [verificationResult, setVerificationResult] = useState<boolean | null>(null);
   const [certificates, setCertificates] = useState<any[]>([]);
+  const [verifiedCertificate, setVerifiedCertificate] = useState<any>(null);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +30,17 @@ const Verify = () => {
       return;
     }
     
+    // Validate that the input is a valid Solana address
+    try {
+      new PublicKey(certId);
+    } catch (error) {
+      toast.error('Invalid certificate ID format. Please enter a valid Solana address.');
+      return;
+    }
+    
     setIsVerifying(true);
     setVerificationResult(null);
+    setVerifiedCertificate(null);
     
     try {
       const result = await verifyCertificate(certId);
@@ -36,12 +48,39 @@ const Verify = () => {
       
       if (result) {
         toast.success('Certificate verified successfully!');
+        
+        // If verified, try to fetch the certificate details
+        try {
+          // This is a simplified approach - in a real app, you'd fetch the specific certificate
+          // For now, we'll search for certificates in the same wallet that owns this NFT
+          const connection = new Connection(
+            SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
+          );
+          
+          // Get the owner of this NFT
+          const largestAccounts = await connection.getTokenLargestAccounts(new PublicKey(certId));
+          const largestAccountInfo = await connection.getParsedAccountInfo(largestAccounts.value[0].address);
+          
+          if (largestAccountInfo.value) {
+            const owner = (largestAccountInfo.value.data as any).parsed.info.owner;
+            const ownerCertificates = await getCertificatesForAddress(owner);
+            
+            // Find the certificate with this mint address
+            const certificate = ownerCertificates.find(cert => cert.id === certId);
+            if (certificate) {
+              setVerifiedCertificate(certificate);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching certificate details:", error);
+        }
       } else {
         toast.error('Certificate verification failed');
       }
     } catch (error) {
       console.error("Error verifying certificate:", error);
       toast.error('An error occurred during verification');
+      setVerificationResult(false);
     } finally {
       setIsVerifying(false);
     }
@@ -52,6 +91,14 @@ const Verify = () => {
     
     if (!walletAddress) {
       toast.error('Please enter a wallet address');
+      return;
+    }
+    
+    // Validate that the input is a valid Solana address
+    try {
+      new PublicKey(walletAddress);
+    } catch (error) {
+      toast.error('Invalid wallet address format. Please enter a valid Solana address.');
       return;
     }
     

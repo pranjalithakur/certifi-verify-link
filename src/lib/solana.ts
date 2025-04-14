@@ -1,6 +1,13 @@
-// This is a placeholder for actual Solana integration
-// In a real application, you would use @solana/web3.js and 
-// possibly @solana/wallet-adapter-react
+// src/lib/solana.ts
+import { Connection, PublicKey } from "@solana/web3.js";
+import * as anchor from "@coral-xyz/anchor";
+import idl from '../idl/solana_nft_anchor_hackernoon.json';
+import axios from "axios";
+import { PINATA_CONFIG, SOLANA_CONFIG } from "@/config";
+import { 
+  mplTokenMetadata, 
+  MPL_TOKEN_METADATA_PROGRAM_ID
+} from '@metaplex-foundation/mpl-token-metadata';
 
 export interface Certificate {
   id: string;
@@ -16,136 +23,218 @@ export interface Certificate {
     tokenId?: string;
     mintAddress?: string;
     imageUrl?: string;
-  };
+  }
 }
 
-// Mock function to simulate issuing a certificate as an NFT
-export const issueCertificate = async (
-  title: string,
-  recipientAddress: string,
-  content: string,
-  certificateImage?: string | null
-): Promise<Certificate | null> => {
-  // This would be a Solana transaction to mint an NFT in a real app
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const certificate: Certificate = {
-        id: Math.random().toString(36).substring(2, 10),
-        title,
-        issuer: "CertifiSol Authority",
-        issuedTo: "John Doe",
-        date: new Date().toLocaleDateString(),
-        content,
-        metadata: {
-          issuerAddress: "Iss3RKe2a3j8hA5E1a578Vk1d9M1n",
-          recipientAddress,
-          tokenId: "NFT_" + Math.random().toString(36).substring(2, 10),
-          mintAddress: "So1" + Math.random().toString(36).substring(2, 10),
-          imageUrl: certificateImage || undefined,
+// Verify a certificate by its mint address
+export const verifyCertificate = async (mintAddress: string): Promise<boolean> => {
+  try {
+    // Connect to Solana
+    const connection = new Connection(
+      SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
+    );
+    
+    // Convert the mint address string to a PublicKey
+    const mintPublicKey = new PublicKey(mintAddress);
+    
+    // Get the token metadata account
+    const metadataPDA = await getMetadataAccount(mintPublicKey);
+    
+    // Fetch the account info
+    const accountInfo = await connection.getAccountInfo(metadataPDA);
+    
+    // If account info exists, the certificate is valid
+    return accountInfo !== null;
+  } catch (error) {
+    console.error("Error verifying certificate:", error);
+    return false;
+  }
+};
+
+// Get all certificates for a wallet address
+export const getCertificatesForAddress = async (walletAddress: string): Promise<Certificate[]> => {
+  try {
+    console.log(`Searching for certificates for wallet: ${walletAddress}`);
+
+    // Connect to Solana
+    const connection = new Connection(
+      SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
+    );
+    
+    // Convert the wallet address string to a PublicKey
+    const walletPublicKey = new PublicKey(walletAddress);
+    
+    // Get all token accounts owned by this wallet
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+      walletPublicKey,
+      { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
+    );
+
+    console.log(`Found ${tokenAccounts.value.length} token accounts`);
+    
+    // Filter for NFTs (amount = 1)
+    const nftAccounts = tokenAccounts.value.filter(
+      account => {
+        const amount = account.account.data.parsed.info.tokenAmount;
+        return amount.uiAmount === 1 && amount.decimals === 0;
+      }
+    );
+
+    console.log(`Found ${nftAccounts.length} NFT accounts`);
+    
+    // For each NFT, get the metadata
+    const certificates: Certificate[] = [];
+    
+    for (const nftAccount of nftAccounts) {
+      const mintAddress = nftAccount.account.data.parsed.info.mint;
+      console.log(`Processing NFT with mint: ${mintAddress}`);
+      
+      try {
+        // Get the metadata account
+        const metadataPDA = await getMetadataAccount(new PublicKey(mintAddress));
+        
+        // Get the metadata URI
+        const metadataAccount = await connection.getAccountInfo(metadataPDA);
+        
+        if (metadataAccount) {
+          // Parse the metadata (this is a simplified version)
+          // In a real implementation, you'd need to properly decode the account data
+          // using the Metaplex SDK
+          
+          // For now, we'll fetch the metadata from the URI
+          // This assumes our program stores the URI in a way we can extract
+          const metadataUri = await extractMetadataUri(connection, metadataPDA);
+          console.log(`Metadata URI: ${metadataUri}`);
+          
+          if (metadataUri) {
+            // Convert IPFS URI to HTTP URL if needed
+            const httpUri = metadataUri.startsWith('ipfs://')
+            ? metadataUri.replace('ipfs://', 'https://teal-dry-albatross-975.mypinata.cloud/ipfs/')
+            : metadataUri;
+            // Fetch the metadata from IPFS or wherever it's stored
+            const response = await axios.get(httpUri);
+            const metadata = response.data;
+            console.log(`Metadata:`, metadata);
+            
+            // Check if this is one of our certificates by looking for specific attributes
+            const isCertificate = metadata.attributes && 
+              metadata.attributes.some(attr => attr.trait_type === "Date Issued");
+            
+            if (isCertificate) {
+              // Create a certificate object
+              const recipientName = metadata.attributes.find(
+                attr => attr.trait_type === "Recipient Name"
+              )?.value || "Unknown";
+              
+              const dateIssued = metadata.attributes.find(
+                attr => attr.trait_type === "Date Issued"
+              )?.value || new Date().toLocaleDateString();
+              
+              certificates.push({
+                id: mintAddress,
+                title: metadata.name,
+                issuer: "CertifiSol",
+                issuedTo: recipientName,
+                date: dateIssued,
+                content: metadata.description || "",
+                verified: true,
+                metadata: {
+                  issuerAddress: SOLANA_CONFIG.PROGRAM_ID,
+                  recipientAddress: walletAddress,
+                  mintAddress: mintAddress,
+                  imageUrl: metadata.image
+                }
+              });
+            }
+          }
         }
-      };
-      resolve(certificate);
-    }, 2000); // Simulating the time it takes to mint an NFT
-  });
+      } catch (error) {
+        console.error(`Error processing NFT ${mintAddress}:`, error);
+      }
+    }
+    
+    return certificates;
+  } catch (error) {
+    console.error("Error getting certificates:", error);
+    return [];
+  }
 };
 
-// Mock function to simulate verifying a certificate
-export const verifyCertificate = async (certificateId: string): Promise<boolean> => {
-  // This would verify the certificate on Solana blockchain in a real app
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Simulate 90% verification success rate
-      const isVerified = Math.random() < 0.9;
-      resolve(isVerified);
-    }, 1000);
-  });
+// Helper function to get the metadata account for a mint
+const getMetadataAccount = async (mintPublicKey: PublicKey): Promise<PublicKey> => {
+  const [metadataPDA] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("metadata"),
+      new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s").toBuffer(),
+      mintPublicKey.toBuffer(),
+    ],
+    new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
+  );
+  
+  return metadataPDA;
 };
 
-// Mock function to get certificates issued to an address
-export const getCertificatesForAddress = async (address: string): Promise<Certificate[]> => {
-  // This would query Solana blockchain in a real app
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const certificates: Certificate[] = [
-        {
-          id: "cert001",
-          title: "Advanced Solana Development",
-          issuer: "Solana Foundation",
-          issuedTo: "John Doe",
-          date: "2023-05-15",
-          content: "This certifies completion of the Advanced Solana Development course.",
-          metadata: {
-            issuerAddress: "SoLF0unD4t10NiSsU3rADdr3s5",
-            recipientAddress: address,
-            tokenId: "token123",
-          }
-        },
-        {
-          id: "cert002",
-          title: "Certified Blockchain Architect",
-          issuer: "Blockchain Council",
-          issuedTo: "John Doe",
-          date: "2023-08-22",
-          content: "This certifies expertise in blockchain architecture design and implementation.",
-          metadata: {
-            issuerAddress: "BL0ckCh41nC0uncil4ddr355",
-            recipientAddress: address,
-            tokenId: "token456",
-          }
-        }
-      ];
-      resolve(certificates);
-    }, 1000);
-  });
-};
+// Helper function to extract metadata URI from account data
+// const extractMetadataUri = async (
+//   connection: Connection,
+//   metadataPDA: PublicKey
+// ): Promise<string | null> => {
+//   try {
+//     // Fetch the metadata account data
+//     const accountInfo = await connection.getAccountInfo(metadataPDA);
+    
+//     if (!accountInfo) {
+//       console.error("Metadata account not found");
+//       return null;
+//     }
+    
+//     // Decode the metadata using Metaplex's Metadata class
+//     const metadataData = mplTokenMetadata.deserializeMetadata(accountInfo.data)[0];
+    
+//     // Return the URI from the decoded metadata
+//     return metadataData.data.uri.replace(/\0/g, ''); // Remove null terminators
+//   } catch (error) {
+//     console.error("Error extracting metadata URI:", error);
+//     return null;
+//   }
+// };
 
-// Mock function to get certificates issued by an address
-export const getCertificatesIssuedByAddress = async (address: string): Promise<Certificate[]> => {
-  // This would query Solana blockchain in a real app
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const certificates: Certificate[] = [
-        {
-          id: "cert003",
-          title: "Introduction to Web3",
-          issuer: "CertifiSol Authority",
-          issuedTo: "Alice Johnson",
-          date: "2023-09-10",
-          content: "This certifies completion of the Introduction to Web3 course.",
-          metadata: {
-            issuerAddress: address,
-            recipientAddress: "4L1c3J0hNs0nS0L4n44ddr3ss",
-            tokenId: "token789",
-            mintAddress: "So1NFT789456",
-          }
-        },
-        {
-          id: "cert004",
-          title: "Smart Contract Security",
-          issuer: "CertifiSol Authority",
-          issuedTo: "Bob Smith",
-          date: "2023-10-05",
-          content: "This certifies expertise in smart contract security and auditing.",
-          metadata: {
-            issuerAddress: address,
-            recipientAddress: "B0bSm1thS0L4n44ddr3ss123",
-            tokenId: "token101",
-            mintAddress: "So1NFT101112",
-          }
-        }
-      ];
-      resolve(certificates);
-    }, 1000);
-  });
-};
 
-// Function to handle the NFT certificate verification
-export const verifyCertificateNFT = async (mintAddress: string): Promise<boolean> => {
-  // This would verify the NFT on Solana blockchain in a real app
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const isVerified = Math.random() < 0.9;
-      resolve(isVerified);
-    }, 1500);
-  });
+const extractMetadataUri = async (
+  connection: Connection,
+  metadataPDA: PublicKey
+): Promise<string | null> => {
+  try {
+    // Fetch the metadata account data
+    const accountInfo = await connection.getAccountInfo(metadataPDA);
+    
+    if (!accountInfo) {
+      console.error("Metadata account not found");
+      return null;
+    }
+    
+    // Manual parsing of metadata account data
+    const data = accountInfo.data;
+    
+    // Skip key, update authority, and mint (1 + 32 + 32 = 65 bytes)
+    let offset = 65;
+    
+    // Skip name
+    const nameLength = data.readUInt32LE(offset);
+    offset += 4 + nameLength;
+    
+    // Skip symbol
+    const symbolLength = data.readUInt32LE(offset);
+    offset += 4 + symbolLength;
+    
+    // Read URI
+    const uriLength = data.readUInt32LE(offset);
+    offset += 4;
+    
+    // Extract URI as string and remove null terminators
+    return data.slice(offset, offset + uriLength).toString('utf8').replace(/\0/g, '');
+  } catch (error) {
+    console.error("Error extracting metadata URI:", error);
+    return null;
+  }
 };
