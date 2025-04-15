@@ -104,7 +104,7 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
             </div>
           </div>
           
-          <div className="w-full flex justify-between items-end">
+          <div className="w-full flex justify-between items-end mb-4">
             <div>
               <p className="text-sm text-gray-500">Date Issued</p>
               <p className="font-medium">{date}</p>
