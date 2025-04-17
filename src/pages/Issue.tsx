@@ -17,6 +17,9 @@ import { publicKey } from "@metaplex-foundation/umi";
 import idl from '../idl/solana_nft_anchor_hackernoon.json';
 import { PINATA_CONFIG, SOLANA_CONFIG } from "@/config";
 import { Button } from "@/components/ui/button";
+import { Check, Copy, ExternalLink } from "lucide-react";
+import { useState as useHookState } from "react";
+
 
 const Issue = () => {
   const wallet = useWallet();
@@ -60,6 +63,7 @@ const Issue = () => {
 
   const [minting, setMinting] = useState(false);
   const [txSignature, setTxSignature] = useState("");
+  const [mintAddress, setMintAddress] = useState("");
 
   // Update state on input change (keeps UI unchanged)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -217,7 +221,8 @@ const Issue = () => {
         .rpc();
 
       setTxSignature(tx);
-      alert(`Certificate NFT minted successfully!\nView at: https://explorer.solana.com/tx/${tx}?cluster=devnet`);
+      setMintAddress(mint.publicKey.toString());
+      // alert(`Certificate NFT minted successfully!\nView at: https://explorer.solana.com/tx/${tx}?cluster=devnet`);
     } catch (err) {
       console.error("Error issuing certificate:", err);
       alert("Minting failed: " + err);
@@ -314,17 +319,80 @@ const Issue = () => {
             </form>
 
             {txSignature && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-green-600 font-medium">Certificate issued successfully!</p>
-                <p className="text-sm mt-2">Transaction: {txSignature.slice(0, 8)}...{txSignature.slice(-8)}</p>
-                <a 
-                  href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-500 hover:text-purple-600 underline text-sm mt-2 inline-block"
-                >
-                  View on Solana Explorer
-                </a>
+              <div className="mt-6 p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-center">
+                  <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center mr-4">
+                    <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-green-800 dark:text-green-300">Certificate issued successfully!</h3>
+                    <p className="text-sm text-green-600 dark:text-green-400 mt-1">Your certificate has been minted as an NFT on Solana.</p>
+                  </div>
+                </div>
+                
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium text-green-700 dark:text-green-300">Transaction ID</label>
+                    <div className="flex items-center">
+                      <code className="bg-white dark:bg-gray-800 px-3 py-2 rounded border border-green-200 dark:border-green-800 text-sm font-mono flex-1 overflow-x-auto">
+                        {txSignature}
+                      </code>
+                      <CopyButton textToCopy={txSignature} />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium text-green-700 dark:text-green-300">Explorer Link</label>
+                    <div className="flex items-center">
+                      <code className="bg-white dark:bg-gray-800 px-3 py-2 rounded border border-green-200 dark:border-green-800 text-sm font-mono flex-1 overflow-x-auto truncate">
+                        https://explorer.solana.com/tx/{txSignature}?cluster=devnet
+                      </code>
+                      <CopyButton textToCopy={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`} />
+                      <a 
+                        href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 p-2 rounded-md hover:bg-green-100 dark:hover:bg-green-800/50 transition-colors"
+                        title="Open in Solana Explorer"
+                      >
+                        <ExternalLink className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium text-green-700 dark:text-green-300">
+                      Certificate ID (Use this to verify)
+                    </label>
+                    <div className="flex items-center">
+                      <code className="bg-white dark:bg-gray-800 px-3 py-2 rounded border border-green-200 dark:border-green-800 text-sm font-mono flex-1 overflow-x-auto">
+                        {mintAddress}
+                      </code>
+                      <CopyButton textToCopy={mintAddress} />
+                      <a 
+                        href={`https://explorer.solana.com/address/${mintAddress}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 p-2 rounded-md hover:bg-green-100 dark:hover:bg-green-800/50 transition-colors"
+                        title="View NFT on Solana Explorer"
+                      >
+                        <ExternalLink className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </a>
+                    </div>
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Copy this ID to verify your certificate on the Verify page
+                    </p>
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-800">
+                    <Button 
+                      onClick={() => window.location.href = '/verify'}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Go to Verify Page
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -364,6 +432,30 @@ const Issue = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const CopyButton = ({ textToCopy }: { textToCopy: string }) => {
+  const [copied, setCopied] = useHookState(false);
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-2 p-2 rounded-md hover:bg-green-100 dark:hover:bg-green-800/50 transition-colors"
+      title={copied ? "Copied!" : "Copy to clipboard"}
+    >
+      {copied ? (
+        <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+      ) : (
+        <Copy className="h-5 w-5 text-green-600 dark:text-green-400" />
+      )}
+    </button>
   );
 };
 
