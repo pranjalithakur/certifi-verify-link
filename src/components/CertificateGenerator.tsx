@@ -70,7 +70,7 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
   };
   
   return (
-    <div className={cn("relative w-[800px] h-[600px]", className)}>
+    <div className={cn("relative w-[650px] h-[500px]", className)}>
       <div 
         ref={certificateRef}
         className="certificate-container w-full h-full p-12 bg-white border-8 border-solana-purple/20 rounded-xl shadow-lg relative overflow-hidden"

@@ -61,6 +61,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
     "framer-motion": "^12.5.0",
+    "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.2.4",
     "ipfs-http-client": "^60.0.1",
