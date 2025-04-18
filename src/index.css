@@ -195,3 +195,16 @@ html {
   opacity: 0;
   transition: opacity 300ms;
 }
+
+/* Certificate preview container styles */
+.certificate-preview-container {
+  width: 100%;
+  height: 500px; /* Increased height */
+  position: relative;
+  overflow: hidden;
+}
+
+.certificate-preview-wrapper {
+  position: absolute;
+  width: 100%;
+}
