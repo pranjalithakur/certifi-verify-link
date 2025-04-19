@@ -20,13 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState as useHookState } from "react";
 import { toPng } from 'html-to-image';
-
+import { encryptPayload, EncryptedPayload } from "@/lib/encryption";
 
 const Issue = () => {
   const wallet = useWallet();
   const certRef = useRef<HTMLDivElement>(null)
 
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [encryptData, setEncryptData] = useState(false);
 
   useEffect(() => {
     const conn = new Connection(import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com");
@@ -142,30 +143,52 @@ const Issue = () => {
     
     setMinting(true);
     try {
+      let metadataUri: string;
+
+      if (encryptData) {
+        // 1) Bundle metadata+image into one object
+        const payload = {
+          name: formData.title,
+          symbol: "CERT",
+          description: formData.content,
+          attributes: [
+            { trait_type: "Recipient Name", value: formData.recipientName },
+            { trait_type: "Date Issued",       value: formData.date },
+          ],
+          imageDataUrl: certificateImage,
+        };
+
+        // 2) Encrypt under your static key
+        const encryptedPkg: EncryptedPayload = encryptPayload(payload);
+
+        // 3) Pin the encrypted JSON
+        metadataUri = await uploadMetadataToIPFS(encryptedPkg);
+
+      } else {
       // 1. Convert the generated certificate image (data URL) to a Blob
-      const imageBlob = dataURLtoBlob(certificateImage);
+        const imageBlob = dataURLtoBlob(certificateImage);
 
-      // 2. Upload the image to Pinata, obtaining an ipfs:// URI
-      console.log("Uploading image to Pinata...");
-      const imageURI = await uploadImageToIPFS(imageBlob);
-      console.log("Image uploaded to IPFS:", imageURI);
+        // 2. Upload the image to Pinata, obtaining an ipfs:// URI
+        console.log("Uploading image to Pinata...");
+        const imageURI = await uploadImageToIPFS(imageBlob);
+        console.log("Image uploaded to IPFS:", imageURI);
 
-      // 3. Build the metadata JSON (include title, description, image, etc.)
-      const metadata = {
-        name: formData.title,
-        symbol: "CERT",
-        description: formData.content,
-        image: imageURI,
-        attributes: [
-          { trait_type: "Recipient Name", value: formData.recipientName },
-          { trait_type: "Date Issued", value: formData.date },
-        ],
-      };
-
-      // 4. Upload the metadata JSON to Pinata
-      console.log("Uploading metadata to Pinata...");
-      const metadataURI = await uploadMetadataToIPFS(metadata);
-      console.log("Metadata uploaded to IPFS:", metadataURI);
+        // 3. Build the metadata JSON (include title, description, image, etc.)
+        const metadata = {
+          name: formData.title,
+          symbol: "CERT",
+          description: formData.content,
+          image: imageURI,
+          attributes: [
+            { trait_type: "Recipient Name", value: formData.recipientName },
+            { trait_type: "Date Issued", value: formData.date },
+          ],
+        };
+        // 4. Upload the metadata JSON to Pinata
+        console.log("Uploading metadata to Pinata...");
+        metadataUri = await uploadMetadataToIPFS(metadata);
+        console.log("Metadata uploaded to IPFS:", metadataUri);
+      }
 
       // 5. Generate a new mint keypair for the NFT
       const mint = Keypair.generate();
@@ -195,7 +218,7 @@ const Issue = () => {
       // • formData.content as the certificate description.
       const tx = await program.methods
         // .initNft(formData.title, metadataURI, formData.content)
-        .initNft(formData.title, "CERT", metadataURI)
+        .initNft(formData.title, "CERT", metadataUri)
         .accounts({
           signer: wallet.publicKey,
           mint: mint.publicKey,
@@ -290,6 +313,18 @@ const Issue = () => {
                   readOnly
                   className="w-full p-3 border rounded-lg bg-gray-50"
                 />
+              </div>
+              <div className="flex items-center space-x-2 mt-4">
+                <input
+                  id="encryptData"
+                  type="checkbox"
+                  checked={encryptData}
+                  onChange={() => setEncryptData(!encryptData)}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="encryptData" className="select-none">
+                  Encrypt certificate data
+                </label>
               </div>
             </div>
 

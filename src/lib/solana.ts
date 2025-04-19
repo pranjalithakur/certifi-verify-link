@@ -8,6 +8,8 @@ import {
   mplTokenMetadata, 
   MPL_TOKEN_METADATA_PROGRAM_ID
 } from '@metaplex-foundation/mpl-token-metadata';
+import { decryptPayload, EncryptedPayload } from "@/lib/encryption";
+
 
 export interface Certificate {
   id: string;
@@ -52,114 +54,112 @@ export const verifyCertificate = async (mintAddress: string): Promise<boolean> =
 };
 
 // Get all certificates for a wallet address
-export const getCertificatesForAddress = async (walletAddress: string): Promise<Certificate[]> => {
-  try {
-    console.log(`Searching for certificates for wallet: ${walletAddress}`);
+export const getCertificatesForAddress = async (
+  walletAddress: string
+): Promise<Certificate[]> => {
+  const certificates: Certificate[] = []
 
-    // Connect to Solana
+  try {
+    // 1) Connect to Solana
     const connection = new Connection(
       SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
-    );
-    
-    // Convert the wallet address string to a PublicKey
-    const walletPublicKey = new PublicKey(walletAddress);
-    
-    // Get all token accounts owned by this wallet
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-      walletPublicKey,
-      { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
-    );
+    )
+    const walletPub = new PublicKey(walletAddress)
 
-    console.log(`Found ${tokenAccounts.value.length} token accounts`);
-    
-    // Filter for NFTs (amount = 1)
-    const nftAccounts = tokenAccounts.value.filter(
-      account => {
-        const amount = account.account.data.parsed.info.tokenAmount;
-        return amount.uiAmount === 1 && amount.decimals === 0;
-      }
-    );
+    // 2) Fetch all token accounts for this owner
+    const parsed = await connection.getParsedTokenAccountsByOwner(walletPub, {
+      programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+    })
 
-    console.log(`Found ${nftAccounts.length} NFT accounts`);
-    
-    // For each NFT, get the metadata
-    const certificates: Certificate[] = [];
-    
-    for (const nftAccount of nftAccounts) {
-      const mintAddress = nftAccount.account.data.parsed.info.mint;
-      console.log(`Processing NFT with mint: ${mintAddress}`);
-      
+    // 3) Filter down to NFTs (1 token, 0 decimals)
+    const nftAccounts = parsed.value.filter(acc => {
+      const info = acc.account.data.parsed.info.tokenAmount
+      return info.uiAmount === 1 && info.decimals === 0
+    })
+
+    // 4) For each NFT mint, pull the on‑chain metadata, then fetch and parse the JSON
+    for (const { account } of nftAccounts) {
+      const mintAddress = account.data.parsed.info.mint as string
+
       try {
-        // Get the metadata account
-        const metadataPDA = await getMetadataAccount(new PublicKey(mintAddress));
-        
-        // Get the metadata URI
-        const metadataAccount = await connection.getAccountInfo(metadataPDA);
-        
-        if (metadataAccount) {
-          // Parse the metadata (this is a simplified version)
-          // In a real implementation, you'd need to properly decode the account data
-          // using the Metaplex SDK
-          
-          // For now, we'll fetch the metadata from the URI
-          // This assumes our program stores the URI in a way we can extract
-          const metadataUri = await extractMetadataUri(connection, metadataPDA);
-          console.log(`Metadata URI: ${metadataUri}`);
-          
-          if (metadataUri) {
-            // Convert IPFS URI to HTTP URL if needed
-            const httpUri = metadataUri.startsWith('ipfs://')
-            ? metadataUri.replace('ipfs://', 'https://teal-dry-albatross-975.mypinata.cloud/ipfs/')
-            : metadataUri;
-            // Fetch the metadata from IPFS or wherever it's stored
-            const response = await axios.get(httpUri);
-            const metadata = response.data;
-            console.log(`Metadata:`, metadata);
-            
-            // Check if this is one of our certificates by looking for specific attributes
-            const isCertificate = metadata.attributes && 
-              metadata.attributes.some(attr => attr.trait_type === "Date Issued");
-            
-            if (isCertificate) {
-              // Create a certificate object
-              const recipientName = metadata.attributes.find(
-                attr => attr.trait_type === "Recipient Name"
-              )?.value || "Unknown";
-              
-              const dateIssued = metadata.attributes.find(
-                attr => attr.trait_type === "Date Issued"
-              )?.value || new Date().toLocaleDateString();
-              
-              certificates.push({
-                id: mintAddress,
-                title: metadata.name,
-                issuer: "CertifiSol",
-                issuedTo: recipientName,
-                date: dateIssued,
-                content: metadata.description || "",
-                verified: true,
-                metadata: {
-                  issuerAddress: SOLANA_CONFIG.PROGRAM_ID,
-                  recipientAddress: walletAddress,
-                  mintAddress: mintAddress,
-                  imageUrl: metadata.image
-                }
-              });
-            }
-          }
+        // 4a) Derive the metadata PDA and extract the URI field
+        const metadataPDA = await getMetadataAccount(new PublicKey(mintAddress))
+        const metadataUri = await extractMetadataUri(connection, metadataPDA)
+        if (!metadataUri) continue
+
+        // 4b) Ensure we have an HTTP‐accessible URL
+        const httpUri = metadataUri.startsWith("ipfs://")
+          ? metadataUri.replace(
+              "ipfs://",
+              "https://teal-dry-albatross-975.mypinata.cloud/ipfs/"
+            )
+          : metadataUri
+
+        // 4c) Download the JSON package (either plain or encrypted)
+        const response = await axios.get<EncryptedPayload | any>(httpUri)
+        let metadata = response.data
+
+        // 4d) If it looks encrypted, decrypt it
+        if (
+          metadata &&
+          typeof metadata === "object" &&
+          metadata.iv != null &&
+          metadata.ciphertext != null
+        ) {
+          metadata = decryptPayload<{
+            name: string
+            symbol: string
+            description: string
+            attributes: { trait_type: string; value: string }[]
+            imageDataUrl: string
+          }>(metadata as EncryptedPayload)
+
+          // normalize the field name so downstream logic is unchanged
+          metadata.image = metadata.imageDataUrl
         }
-      } catch (error) {
-        console.error(`Error processing NFT ${mintAddress}:`, error);
+
+        // 4e) Validate it’s one of our certificates
+        if (
+          !metadata.attributes ||
+          !metadata.attributes.some(a => a.trait_type === "Date Issued")
+        ) {
+          continue
+        }
+
+        // 4f) Pull out recipient + date
+        const recipientName =
+          metadata.attributes.find(a => a.trait_type === "Recipient Name")
+            ?.value || "Unknown"
+        const dateIssued =
+          metadata.attributes.find(a => a.trait_type === "Date Issued")
+            ?.value || ""
+
+        // 4g) Build our Certificate shape
+        certificates.push({
+          id: mintAddress,
+          title: metadata.name,
+          issuer: "CertifiSol",
+          issuedTo: recipientName,
+          date: dateIssued,
+          content: metadata.description || "",
+          verified: true,
+          metadata: {
+            issuerAddress: SOLANA_CONFIG.PROGRAM_ID,
+            recipientAddress: walletAddress,
+            mintAddress,
+            imageUrl: metadata.image
+          }
+        })
+      } catch (innerErr) {
+        console.warn(`Skipping NFT ${mintAddress}:`, innerErr)
       }
     }
-    
-    return certificates;
-  } catch (error) {
-    console.error("Error getting certificates:", error);
-    return [];
+  } catch (err) {
+    console.error("Error fetching certificates:", err)
   }
-};
 
+  return certificates
+}
 // Helper function to get the metadata account for a mint
 const getMetadataAccount = async (mintPublicKey: PublicKey): Promise<PublicKey> => {
   const [metadataPDA] = PublicKey.findProgramAddressSync(
