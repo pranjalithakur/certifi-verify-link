@@ -4,7 +4,8 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
-import CertificateCard from '@/components/CertificateCard';
+import CertificateCard, { Certificate } from "@/components/CertificateCard";
+
 
 const Index = () => {
   const targetRef = useRef<HTMLDivElement>(null);
@@ -55,6 +56,18 @@ const Index = () => {
       )
     },
   ];
+
+  const sampleCertificate: Certificate = {
+    id: "sample-id‑for‑preview",
+    title: "Solana Certified Developer",
+    issuer: "Solana Foundation",
+    issuedTo: "John Doe",
+    date: "April 22, 2025",
+    content: "Awarded for excellence in Solana development.",
+    metadata: { imageUrl: "" /* or some placeholder IPFS URL */ },
+    verified: true,
+  };
+
 
   return (
     <div className="min-h-screen">
@@ -108,11 +121,8 @@ const Index = () => {
           >
             <div className="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80 pointer-events-none -bottom-10 z-10" />
             <div className="max-w-3xl mx-auto">
-              <CertificateCard 
-                title="Solana Certified Developer"
-                issuer="Solana Foundation"
-                date="May 15, 2023"
-                verified={true}
+              <CertificateCard
+                certificate={sampleCertificate}
                 className="shadow-xl shadow-solana-purple/10"
               />
             </div>
@@ -268,7 +278,7 @@ const Index = () => {
             </div>
             
             <div className="text-center md:text-right">
-              <p className="text-gray-500 dark:text-gray-400">© 2023 CertifiSol. All rights reserved.</p>
+              <p className="text-gray-500 dark:text-gray-400">© 2025 CertifiSol. All rights reserved.</p>
             </div>
           </div>
         </div>
