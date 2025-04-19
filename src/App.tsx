@@ -10,6 +10,7 @@ import Issue from "./pages/Issue";
 import Verify from "./pages/Verify";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navbar";
+import CertificateDetails from "./pages/CertificateDetails";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,10 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/issue" element={<Issue />} />
             <Route path="/verify" element={<Verify />} />
+            <Route
+              path="/certificate/:id"
+              element={<CertificateDetails />}
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>

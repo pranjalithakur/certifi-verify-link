@@ -249,11 +249,7 @@ const Verify = () => {
                         {certificates.map((cert, index) => (
                           <CertificateCard
                             key={index}
-                            title={cert.title}
-                            issuer={cert.issuer}
-                            issuedTo={cert.issuedTo}
-                            date={cert.date}
-                            className="w-full"
+                            certificate={cert}
                           />
                         ))}
                       </div>
