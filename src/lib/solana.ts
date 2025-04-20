@@ -1,14 +1,18 @@
 // src/lib/solana.ts
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey} from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import idl from '../idl/solana_nft_anchor_hackernoon.json';
 import axios from "axios";
 import { PINATA_CONFIG, SOLANA_CONFIG } from "@/config";
-import { 
-  mplTokenMetadata, 
-  MPL_TOKEN_METADATA_PROGRAM_ID
-} from '@metaplex-foundation/mpl-token-metadata';
+import {
+  mplTokenMetadata,
+  deserializeMetadata,
+} from "@metaplex-foundation/mpl-token-metadata";
 import { decryptPayload, EncryptedPayload } from "@/lib/encryption";
+import {
+  publicKey as toUmiPublicKey,
+  lamports as toSolAmount,
+} from "@metaplex-foundation/umi";
 
 
 export interface Certificate {
@@ -26,6 +30,15 @@ export interface Certificate {
     mintAddress?: string;
     imageUrl?: string;
   }
+}
+
+function isEncrypted(m: any): m is EncryptedPayload {
+  return (
+    m != null &&
+    typeof m === "object" &&
+    typeof m.iv === "string" &&
+    typeof m.ciphertext === "string"
+  );
 }
 
 // Verify a certificate by its mint address
@@ -60,6 +73,7 @@ export const getCertificatesForAddress = async (
   const certificates: Certificate[] = []
 
   try {
+    const certificates: Certificate[] = [];
     // 1) Connect to Solana
     const connection = new Connection(
       SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
@@ -100,12 +114,7 @@ export const getCertificatesForAddress = async (
         let metadata = response.data
 
         // 4d) If it looks encrypted, decrypt it
-        if (
-          metadata &&
-          typeof metadata === "object" &&
-          metadata.iv != null &&
-          metadata.ciphertext != null
-        ) {
+        if (isEncrypted(metadata)) {
           metadata = decryptPayload<{
             name: string
             symbol: string
@@ -120,33 +129,33 @@ export const getCertificatesForAddress = async (
 
         // 4e) Validate it’s one of our certificates
         if (
-          !metadata.attributes ||
-          !metadata.attributes.some(a => a.trait_type === "Date Issued")
+          !Array.isArray(metadata.attributes) ||
+          !metadata.attributes.some((a) => a.trait_type === "Date Issued")
         ) {
-          continue
+          continue;
         }
 
         // 4f) Pull out recipient + date
-        const recipientName =
-          metadata.attributes.find(a => a.trait_type === "Recipient Name")
-            ?.value || "Unknown"
-        const dateIssued =
-          metadata.attributes.find(a => a.trait_type === "Date Issued")
-            ?.value || ""
+        const recipient = metadata.attributes.find(
+          (a) => a.trait_type === "Recipient Name"
+        )?.value;
+        const dateIssued = metadata.attributes.find(
+          (a) => a.trait_type === "Date Issued"
+        )?.value;
 
         // 4g) Build our Certificate shape
         certificates.push({
           id: mintAddress,
           title: metadata.name,
           issuer: "CertifiSol",
-          issuedTo: recipientName,
+          issuedTo: recipient,
           date: dateIssued,
           content: metadata.description || "",
           verified: true,
           metadata: {
             issuerAddress: SOLANA_CONFIG.PROGRAM_ID,
             recipientAddress: walletAddress,
-            mintAddress,
+            mintAddress: mintAddress,
             imageUrl: metadata.image
           }
         })
@@ -175,66 +184,23 @@ const getMetadataAccount = async (mintPublicKey: PublicKey): Promise<PublicKey> 
 };
 
 // Helper function to extract metadata URI from account data
-// const extractMetadataUri = async (
-//   connection: Connection,
-//   metadataPDA: PublicKey
-// ): Promise<string | null> => {
-//   try {
-//     // Fetch the metadata account data
-//     const accountInfo = await connection.getAccountInfo(metadataPDA);
-    
-//     if (!accountInfo) {
-//       console.error("Metadata account not found");
-//       return null;
-//     }
-    
-//     // Decode the metadata using Metaplex's Metadata class
-//     const metadataData = mplTokenMetadata.deserializeMetadata(accountInfo.data)[0];
-    
-//     // Return the URI from the decoded metadata
-//     return metadataData.data.uri.replace(/\0/g, ''); // Remove null terminators
-//   } catch (error) {
-//     console.error("Error extracting metadata URI:", error);
-//     return null;
-//   }
-// };
-
-
-const extractMetadataUri = async (
+export const extractMetadataUri = async (
   connection: Connection,
   metadataPDA: PublicKey
 ): Promise<string | null> => {
-  try {
-    // Fetch the metadata account data
-    const accountInfo = await connection.getAccountInfo(metadataPDA);
-    
-    if (!accountInfo) {
-      console.error("Metadata account not found");
-      return null;
-    }
-    
-    // Manual parsing of metadata account data
-    const data = accountInfo.data;
-    
-    // Skip key, update authority, and mint (1 + 32 + 32 = 65 bytes)
-    let offset = 65;
-    
-    // Skip name
-    const nameLength = data.readUInt32LE(offset);
-    offset += 4 + nameLength;
-    
-    // Skip symbol
-    const symbolLength = data.readUInt32LE(offset);
-    offset += 4 + symbolLength;
-    
-    // Read URI
-    const uriLength = data.readUInt32LE(offset);
-    offset += 4;
-    
-    // Extract URI as string and remove null terminators
-    return data.slice(offset, offset + uriLength).toString('utf8').replace(/\0/g, '');
-  } catch (error) {
-    console.error("Error extracting metadata URI:", error);
-    return null;
-  }
+  const info = await connection.getAccountInfo(metadataPDA);
+  if (!info) return null;
+
+  // build the exact RpcAccount shape mpl-token-metadata expects
+  const rpcAccount = {
+    data: info.data,                                  // Uint8Array
+    executable: info.executable,                      // boolean
+    lamports: toSolAmount(info.lamports),             // SolAmount
+    owner: toUmiPublicKey(info.owner.toBase58()),     // Umi PublicKey
+    publicKey: toUmiPublicKey(metadataPDA.toBase58()),// Umi PublicKey
+    rentEpoch: BigInt((info as any).rentEpoch || 0),  // bigint
+  };
+
+  const metadata = deserializeMetadata(rpcAccount);
+  return metadata.uri.replace(/\0/g, "").trim();
 };

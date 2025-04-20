@@ -29,10 +29,11 @@ const Issue = () => {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [encryptData, setEncryptData] = useState(false);
 
-  useEffect(() => {
-    const conn = new Connection(import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com");
-    setConnection(conn);
-  }, []);
+  const [minting, setMinting] = useState(false);
+  const [txSignature, setTxSignature] = useState("");
+  const [mintAddress, setMintAddress] = useState("");
+
+  const [certificateImage, setCertificateImage] = useState("");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -41,12 +42,18 @@ const Issue = () => {
     recipientAddress: "",
     content: "",
     date: new Date().toLocaleDateString(),
-    certificateImage: "",
   });
 
-  // Set up Anchor provider using the connected wallet
-  // const provider = new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions());
-  // anchor.setProvider(provider);
+
+  // 1) init connection
+  useEffect(() => {
+    const conn = new Connection(
+      import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com"
+    );
+    setConnection(conn);
+  }, []);
+
+  // 2) anchor provider + program
   const provider = connection ? 
     new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions()) : 
     null;
@@ -64,13 +71,7 @@ const Issue = () => {
   // const program = new anchor.Program(idl as anchor.Idl, programId, provider);
   const program = provider ? new anchor.Program(idl as anchor.Idl, programId, provider) : null;
 
-
-  const [minting, setMinting] = useState(false);
-  const [txSignature, setTxSignature] = useState("");
-  const [mintAddress, setMintAddress] = useState("");
-
-  const [certificateImage, setCertificateImage] = useState<string>("")
-
+  // 3) capture the SVG to PNG
   const captureCertificate = async () => {
     if (!certRef.current) return;
     try {
@@ -91,7 +92,7 @@ const Issue = () => {
 
   // ----------------------- Helper Functions -----------------------
 
-  // Converts a data URL (from CertificateGenerator) to a Blob.
+    // 4) helpers to upload to Pinata
   const dataURLtoBlob = (dataurl: string): Blob => {
     const arr = dataurl.split(",");
     const mime = arr[0].match(/:(.*?);/)?.[1] || "";
@@ -146,6 +147,7 @@ const Issue = () => {
       let metadataUri: string;
 
       if (encryptData) {
+        // ENCRYPTED FLOW
         // 1) Bundle metadata+image into one object
         const payload = {
           name: formData.title,
@@ -165,7 +167,8 @@ const Issue = () => {
         metadataUri = await uploadMetadataToIPFS(encryptedPkg);
 
       } else {
-      // 1. Convert the generated certificate image (data URL) to a Blob
+        // UNENCRYPTED FLOW
+        // 1. Convert the generated certificate image (data URL) to a Blob
         const imageBlob = dataURLtoBlob(certificateImage);
 
         // 2. Upload the image to Pinata, obtaining an ipfs:// URI
@@ -240,8 +243,9 @@ const Issue = () => {
     } catch (err) {
       console.error("Error issuing certificate:", err);
       alert("Minting failed: " + err);
+    } finally {
+      setMinting(false);
     }
-    setMinting(false);
   };
 
   return (
