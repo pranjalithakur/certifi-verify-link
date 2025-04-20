@@ -74,9 +74,40 @@ npm install
 
 Create a `.env.local` file in the project root, and the config file in `src/config.ts`
 
-Note you can create a new VITE_ENCRYPTION_KEY by running the following command in your terminal:
+Example: 
+`.env.local` file:
+
+You can create a new VITE_ENCRYPTION_KEY by running the following command in your terminal:
 ```
 openssl rand -hex 32 
+```
+
+Example: 
+`src/config.ts` file:
+
+```
+// This file contains configuration values
+export const PINATA_CONFIG = {
+    API_KEY: "",
+    API_SECRET: "",
+    GATEWAY: "",
+    JWT: ""
+  };
+
+export const SOLANA_CONFIG = {
+  PROGRAM_ID: "",
+  NETWORK: "devnet",
+  RPC_URL: "https://api.devnet.solana.com"
+}
+
+export const ALLOWED_ISSUERS: Record<string,string> = {
+  "Acme University": "",
+  "Solana Tech Institute": "",
+};
+
+export const ALLOWED_ISSUER_ADDRESSES: string[] =
+  Object.values(ALLOWED_ISSUERS);
+
 ```
 
 ### 4. Run Locally
