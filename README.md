@@ -1,7 +1,6 @@
 # CertifiSol — Blockchain‑Backed Certificate Platform on Solana
 
-[![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)](https://github.com/your-org/certifi-verify-link)  
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)  
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-org/certifi-verify-link)  
 [![Vite](https://img.shields.io/badge/bundler-Vite-646cff)](https://vitejs.dev)  
 [![React](https://img.shields.io/badge/framework-React-61dafb)](https://reactjs.org)  
 [![Solana](https://img.shields.io/badge/blockchain-Solana-00FFA3)](https://solana.com)  
@@ -74,6 +73,11 @@ npm install
 ### 3. Environment Variables
 
 Create a `.env.local` file in the project root, and the config file in `src/config.ts`
+
+Note you can create a new VITE_ENCRYPTION_KEY by running the following command in your terminal:
+```
+openssl rand -hex 32 
+```
 
 ### 4. Run Locally
 
