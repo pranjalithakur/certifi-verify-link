@@ -99,7 +99,6 @@ export const getCertificatesForAddress = async (
   const certificates: Certificate[] = []
 
   try {
-    const certificates: Certificate[] = [];
     // 1) Connect to Solana
     const connection = new Connection(
       SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
