@@ -1,69 +1,102 @@
-# Welcome to your Lovable project
+# CertifiSol — Blockchain‑Backed Certificate Platform on Solana
 
-## Project info
+[![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)](https://github.com/your-org/certifi-verify-link)  
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)  
+[![Vite](https://img.shields.io/badge/bundler-Vite-646cff)](https://vitejs.dev)  
+[![React](https://img.shields.io/badge/framework-React-61dafb)](https://reactjs.org)  
+[![Solana](https://img.shields.io/badge/blockchain-Solana-00FFA3)](https://solana.com)  
 
-**URL**: https://lovable.dev/projects/9326d8ef-18f8-4465-bc35-3b6b04007122
+CertifiSol is a modern web application for issuing, viewing and verifying digital certificates anchored on the Solana blockchain. It combines a sleek React/TypeScript frontend with Solana wallet integration, on‑chain metadata, and dynamic certificate image generation.
 
-## How can I edit this code?
+## Table of Contents
 
-There are several ways of editing your application.
+- [Features](#features)   
+- [Tech Stack](#tech-stack)  
+- [Getting Started](#getting-started)  
+  - [Prerequisites](#prerequisites)  
+  - [Clone & Install](#clone--install)  
+  - [Environment Variables](#environment-variables)  
+  - [Run Locally](#run-locally)  
+  - [Build & Preview](#build--preview)  
+- [Folder Structure](#folder-structure)  
+- [Environment Configuration](#environment-configuration)  
+- [Contributing](#contributing)  
+- [License](#license)  
+- [Contact](#contact)  
+- [Acknowledgements](#acknowledgements)  
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/9326d8ef-18f8-4465-bc35-3b6b04007122) and start prompting.
+## Features
 
-Changes made via Lovable will be committed automatically to this repo.
+- 🚀 **Issue Certificates**: Mint NFTs as tamper‑proof certificates on Solana.  
+- 🔍 **Verify Certificates**: Check validity and metadata in real time.  
+- 📄 **Certificate Details**: View on‑chain metadata, issuer, recipient and image.  
+- 📸 **Dynamic Image Generation**: Render high‑resolution PNGs via `html2canvas`.  
+- 🔑 **Wallet Integration**: Connect using any Solana wallet (Phantom, Solflare, etc.).  
+- ⚡ **Optimistic Data Fetching**: Powered by TanStack Query for blazing fast UX.  
+- 🎨 **Animations & Theming**: Framer Motion transitions and Tailwind CSS with dark mode.  
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Tech Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Language & Bundler**:  
+  - Vite · TypeScript  
+- **UI & Styling**:  
+  - React · Tailwind CSS · shadcn‑UI (Radix UI primitives + CVA)  
+- **Blockchain**:  
+  - @solana/web3.js · @solana/wallet-adapter  
+  - @coral-xyz/anchor · Metaplex UMI / Token Metadata  
+- **Data Fetching**:  
+  - @tanstack/react-query  
+- **Animations**:  
+  - Framer Motion  
+- **Image Generation**:  
+  - html2canvas · html-to-image  
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Getting Started
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Prerequisites
 
-# Step 3: Install the necessary dependencies.
-npm i
+- Node.js ≥ 18.x (use [nvm](https://github.com/nvm-sh/nvm) to manage versions)  
+- npm ≥ 8.x or yarn ≥ 1.x  
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### Clone & Install
+```
+git clone https://github.com/your-org/certifi-verify-link.git
+cd certifi-verify-link
+npm install
+```
+
+### 3. Environment Variables
+
+Create a `.env.local` file in the project root, and the config file in `src/config.ts`
+
+### 4. Run Locally
+
+```
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 📁 Folder Structure
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with .
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/9326d8ef-18f8-4465-bc35-3b6b04007122) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+├── public/ # Static assets (SVGs, robots.txt, favicon)
+├── src/
+│ ├── assets/ # Images, icons
+│ ├── components/ # Shared UI components & shadcn‑UI primitives
+│ ├── hooks/ # Custom React hooks
+│ ├── lib/ # Utilities & helpers
+│ ├── pages/ # Route components (Index, Issue, Verify, Details, NotFound)
+│ ├── styles/ # Global CSS (Tailwind)
+│ ├── config.ts # Environment config (ignored in Git)
+│ └── main.tsx # App entrypoint
+├── .env.example # Example environment variables
+├── tailwind.config.ts # Tailwind CSS config
+├── postcss.config.js # PostCSS config
+├── eslint.config.js # ESLint config
+├── vite.config.ts # Vite config
+├── package.json
+└── README.md
