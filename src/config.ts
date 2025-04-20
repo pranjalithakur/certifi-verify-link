@@ -6,8 +6,16 @@ export const PINATA_CONFIG = {
     JWT: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI0NjE0MGQzZi1hNWJjLTRjOWUtYTE4Yy02N2UzN2YyNWQyY2IiLCJlbWFpbCI6InRoYWt1ci5wcmFuamFsaTE5QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJmNThmZjk5MmFiMmI2ZDZhZGMwMiIsInNjb3BlZEtleVNlY3JldCI6IjZkYTg0MzU5OTBjZThkZDQ5ZmNmZWFiMWEzZTBmM2I5YzYwZTU5ZDZmNTk0ZGYwMmQzMWRiNzkyN2FkYjExYmQiLCJleHAiOjE3NzQ5MDUzODZ9.69q_Sl4BIFBxxqlegXyPhYpXQ7t05p3rWXvtjP1OLl8"
   };
 
-  export const SOLANA_CONFIG = {
-    PROGRAM_ID: "GgWwdVrGkJSvCJ7ZGbqcVDb5GbCAWzQFY8JbUwDyuPks",
-    NETWORK: "devnet",
-    RPC_URL: "https://api.devnet.solana.com"
-  }
+export const SOLANA_CONFIG = {
+  PROGRAM_ID: "GgWwdVrGkJSvCJ7ZGbqcVDb5GbCAWzQFY8JbUwDyuPks",
+  NETWORK: "devnet",
+  RPC_URL: "https://api.devnet.solana.com"
+}
+
+export const ALLOWED_ISSUERS: Record<string,string> = {
+  "Acme University": "EcF8z5yWhdtNTdz4taGsxdjsFmFJxwzeZd8UX7h3ujNV",
+  "Solana Tech Institute": "EcF8z5yWhdtNTdz4taGsxdjsFmFJxwzeZd8UX7h3uj89",
+};
+
+export const ALLOWED_ISSUER_ADDRESSES: string[] =
+  Object.values(ALLOWED_ISSUERS);

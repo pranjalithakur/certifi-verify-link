@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { Connection, PublicKey, Keypair, Transaction } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createTransferInstruction } from "@solana/spl-token";
 import {
   findMetadataPda,
   findMasterEditionPda,
@@ -20,18 +20,20 @@ import { Button } from "@/components/ui/button";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState as useHookState } from "react";
 import { toPng } from 'html-to-image';
-
+import { encryptPayload, EncryptedPayload } from "@/lib/encryption";
 
 const Issue = () => {
   const wallet = useWallet();
   const certRef = useRef<HTMLDivElement>(null)
 
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [encryptData, setEncryptData] = useState(false);
 
-  useEffect(() => {
-    const conn = new Connection(import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com");
-    setConnection(conn);
-  }, []);
+  const [minting, setMinting] = useState(false);
+  const [txSignature, setTxSignature] = useState("");
+  const [mintAddress, setMintAddress] = useState("");
+
+  const [certificateImage, setCertificateImage] = useState("");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -40,12 +42,18 @@ const Issue = () => {
     recipientAddress: "",
     content: "",
     date: new Date().toLocaleDateString(),
-    certificateImage: "",
   });
 
-  // Set up Anchor provider using the connected wallet
-  // const provider = new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions());
-  // anchor.setProvider(provider);
+
+  // 1) init connection
+  useEffect(() => {
+    const conn = new Connection(
+      import.meta.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com"
+    );
+    setConnection(conn);
+  }, []);
+
+  // 2) anchor provider + program
   const provider = connection ? 
     new anchor.AnchorProvider(connection, wallet as any, anchor.AnchorProvider.defaultOptions()) : 
     null;
@@ -63,13 +71,7 @@ const Issue = () => {
   // const program = new anchor.Program(idl as anchor.Idl, programId, provider);
   const program = provider ? new anchor.Program(idl as anchor.Idl, programId, provider) : null;
 
-
-  const [minting, setMinting] = useState(false);
-  const [txSignature, setTxSignature] = useState("");
-  const [mintAddress, setMintAddress] = useState("");
-
-  const [certificateImage, setCertificateImage] = useState<string>("")
-
+  // 3) capture the SVG to PNG
   const captureCertificate = async () => {
     if (!certRef.current) return;
     try {
@@ -90,7 +92,7 @@ const Issue = () => {
 
   // ----------------------- Helper Functions -----------------------
 
-  // Converts a data URL (from CertificateGenerator) to a Blob.
+    // 4) helpers to upload to Pinata
   const dataURLtoBlob = (dataurl: string): Blob => {
     const arr = dataurl.split(",");
     const mime = arr[0].match(/:(.*?);/)?.[1] || "";
@@ -142,30 +144,54 @@ const Issue = () => {
     
     setMinting(true);
     try {
-      // 1. Convert the generated certificate image (data URL) to a Blob
-      const imageBlob = dataURLtoBlob(certificateImage);
+      let metadataUri: string;
 
-      // 2. Upload the image to Pinata, obtaining an ipfs:// URI
-      console.log("Uploading image to Pinata...");
-      const imageURI = await uploadImageToIPFS(imageBlob);
-      console.log("Image uploaded to IPFS:", imageURI);
+      if (encryptData) {
+        // ENCRYPTED FLOW
+        // 1) Bundle metadata+image into one object
+        const payload = {
+          name: formData.title,
+          symbol: "CERT",
+          description: formData.content,
+          attributes: [
+            { trait_type: "Recipient Name", value: formData.recipientName },
+            { trait_type: "Date Issued",       value: formData.date },
+          ],
+          imageDataUrl: certificateImage,
+        };
 
-      // 3. Build the metadata JSON (include title, description, image, etc.)
-      const metadata = {
-        name: formData.title,
-        symbol: "CERT",
-        description: formData.content,
-        image: imageURI,
-        attributes: [
-          { trait_type: "Recipient Name", value: formData.recipientName },
-          { trait_type: "Date Issued", value: formData.date },
-        ],
-      };
+        // 2) Encrypt under your static key
+        const encryptedPkg: EncryptedPayload = encryptPayload(payload);
 
-      // 4. Upload the metadata JSON to Pinata
-      console.log("Uploading metadata to Pinata...");
-      const metadataURI = await uploadMetadataToIPFS(metadata);
-      console.log("Metadata uploaded to IPFS:", metadataURI);
+        // 3) Pin the encrypted JSON
+        metadataUri = await uploadMetadataToIPFS(encryptedPkg);
+
+      } else {
+        // UNENCRYPTED FLOW
+        // 1. Convert the generated certificate image (data URL) to a Blob
+        const imageBlob = dataURLtoBlob(certificateImage);
+
+        // 2. Upload the image to Pinata, obtaining an ipfs:// URI
+        console.log("Uploading image to Pinata...");
+        const imageURI = await uploadImageToIPFS(imageBlob);
+        console.log("Image uploaded to IPFS:", imageURI);
+
+        // 3. Build the metadata JSON (include title, description, image, etc.)
+        const metadata = {
+          name: formData.title,
+          symbol: "CERT",
+          description: formData.content,
+          image: imageURI,
+          attributes: [
+            { trait_type: "Recipient Name", value: formData.recipientName },
+            { trait_type: "Date Issued", value: formData.date },
+          ],
+        };
+        // 4. Upload the metadata JSON to Pinata
+        console.log("Uploading metadata to Pinata...");
+        metadataUri = await uploadMetadataToIPFS(metadata);
+        console.log("Metadata uploaded to IPFS:", metadataUri);
+      }
 
       // 5. Generate a new mint keypair for the NFT
       const mint = Keypair.generate();
@@ -195,7 +221,7 @@ const Issue = () => {
       // • formData.content as the certificate description.
       const tx = await program.methods
         // .initNft(formData.title, metadataURI, formData.content)
-        .initNft(formData.title, "CERT", metadataURI)
+        .initNft(formData.title, "CERT", metadataUri)
         .accounts({
           signer: wallet.publicKey,
           mint: mint.publicKey,
@@ -214,11 +240,44 @@ const Issue = () => {
       setTxSignature(tx);
       setMintAddress(mint.publicKey.toString());
       // alert(`Certificate NFT minted successfully!\nView at: https://explorer.solana.com/tx/${tx}?cluster=devnet`);
+
+      // ------------------ transfer NFT to the recipient ------------------
+      if (formData.recipientAddress) {
+        // derive both ATAs
+        const issuerAta     = await getAssociatedTokenAddress(mint.publicKey, wallet.publicKey);
+        const recipientPk   = new PublicKey(formData.recipientAddress);
+        const recipientAta  = await getAssociatedTokenAddress(mint.publicKey, recipientPk);
+
+        // build a transfer tx: create recipient ATA (noop if exists) + transfer 1 token
+        const transferTx = new Transaction().add(
+          createAssociatedTokenAccountInstruction(
+            wallet.publicKey,   // payer
+            recipientAta,       // ata to create (if needed)
+            recipientPk,        // owner of that ata
+            mint.publicKey      // mint
+          ),
+          createTransferInstruction(
+            issuerAta,          // source (your ATA)
+            recipientAta,       // dest (their ATA)
+            wallet.publicKey,   // authority over source
+            1,                  // amount
+            [],                 // multisig (none)
+            TOKEN_PROGRAM_ID
+          )
+        );
+
+        // send & confirm via the wallet adapter
+        const transferSig = await wallet.sendTransaction(transferTx, connection!);
+        const { blockhash, lastValidBlockHeight } = await connection!.getLatestBlockhash("confirmed");
+
+        await connection!.confirmTransaction({ signature: transferSig, blockhash, lastValidBlockHeight }, "confirmed");
+      }
     } catch (err) {
       console.error("Error issuing certificate:", err);
       alert("Minting failed: " + err);
+    } finally {
+      setMinting(false);
     }
-    setMinting(false);
   };
 
   return (
@@ -290,6 +349,18 @@ const Issue = () => {
                   readOnly
                   className="w-full p-3 border rounded-lg bg-gray-50"
                 />
+              </div>
+              <div className="flex items-center space-x-2 mt-4">
+                <input
+                  id="encryptData"
+                  type="checkbox"
+                  checked={encryptData}
+                  onChange={() => setEncryptData(!encryptData)}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="encryptData" className="select-none">
+                  Encrypt certificate data
+                </label>
               </div>
             </div>
 

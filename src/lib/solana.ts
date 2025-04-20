@@ -1,13 +1,19 @@
 // src/lib/solana.ts
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey} from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import idl from '../idl/solana_nft_anchor_hackernoon.json';
 import axios from "axios";
-import { PINATA_CONFIG, SOLANA_CONFIG } from "@/config";
-import { 
-  mplTokenMetadata, 
-  MPL_TOKEN_METADATA_PROGRAM_ID
-} from '@metaplex-foundation/mpl-token-metadata';
+import { PINATA_CONFIG, SOLANA_CONFIG, ALLOWED_ISSUER_ADDRESSES } from "@/config";
+import {
+  mplTokenMetadata,
+  deserializeMetadata,
+} from "@metaplex-foundation/mpl-token-metadata";
+import { decryptPayload, EncryptedPayload } from "@/lib/encryption";
+import {
+  publicKey as toUmiPublicKey,
+  lamports as toSolAmount,
+} from "@metaplex-foundation/umi";
+
 
 export interface Certificate {
   id: string;
@@ -26,6 +32,15 @@ export interface Certificate {
   }
 }
 
+function isEncrypted(m: any): m is EncryptedPayload {
+  return (
+    m != null &&
+    typeof m === "object" &&
+    typeof m.iv === "string" &&
+    typeof m.ciphertext === "string"
+  );
+}
+
 // Verify a certificate by its mint address
 export const verifyCertificate = async (mintAddress: string): Promise<boolean> => {
   try {
@@ -42,9 +57,35 @@ export const verifyCertificate = async (mintAddress: string): Promise<boolean> =
     
     // Fetch the account info
     const accountInfo = await connection.getAccountInfo(metadataPDA);
-    
+
+    if (!accountInfo) {
+      console.warn(`No metadata account found for mint ${mintAddress}`);
+      return false;
+    }
+
+    const rpcAccount = {
+      data: accountInfo.data,
+      executable: accountInfo.executable,
+      lamports: toSolAmount(accountInfo.lamports),
+      owner: toUmiPublicKey(accountInfo.owner.toBase58()),
+      publicKey: toUmiPublicKey(metadataPDA.toBase58()),
+      rentEpoch: BigInt((accountInfo as any).rentEpoch || 0),
+    };
+
+    // 4) decode the metadata
+    const meta = deserializeMetadata(rpcAccount);
+
+    // 5) check that updateAuthority is in your allow‑list
+    if (!ALLOWED_ISSUER_ADDRESSES.includes(meta.updateAuthority)) {
+      console.warn(
+        `Untrusted issuer ${meta.updateAuthority} for certificate ${mintAddress}`
+      );
+      return false;
+    }
+
+    return true;
     // If account info exists, the certificate is valid
-    return accountInfo !== null;
+    // return accountInfo !== null;
   } catch (error) {
     console.error("Error verifying certificate:", error);
     return false;
@@ -52,114 +93,107 @@ export const verifyCertificate = async (mintAddress: string): Promise<boolean> =
 };
 
 // Get all certificates for a wallet address
-export const getCertificatesForAddress = async (walletAddress: string): Promise<Certificate[]> => {
-  try {
-    console.log(`Searching for certificates for wallet: ${walletAddress}`);
+export const getCertificatesForAddress = async (
+  walletAddress: string
+): Promise<Certificate[]> => {
+  const certificates: Certificate[] = []
 
-    // Connect to Solana
+  try {
+    // 1) Connect to Solana
     const connection = new Connection(
       SOLANA_CONFIG.RPC_URL || "https://api.devnet.solana.com"
-    );
-    
-    // Convert the wallet address string to a PublicKey
-    const walletPublicKey = new PublicKey(walletAddress);
-    
-    // Get all token accounts owned by this wallet
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-      walletPublicKey,
-      { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") }
-    );
+    )
+    const walletPub = new PublicKey(walletAddress)
 
-    console.log(`Found ${tokenAccounts.value.length} token accounts`);
-    
-    // Filter for NFTs (amount = 1)
-    const nftAccounts = tokenAccounts.value.filter(
-      account => {
-        const amount = account.account.data.parsed.info.tokenAmount;
-        return amount.uiAmount === 1 && amount.decimals === 0;
-      }
-    );
+    // 2) Fetch all token accounts for this owner
+    const parsed = await connection.getParsedTokenAccountsByOwner(walletPub, {
+      programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+    })
 
-    console.log(`Found ${nftAccounts.length} NFT accounts`);
-    
-    // For each NFT, get the metadata
-    const certificates: Certificate[] = [];
-    
-    for (const nftAccount of nftAccounts) {
-      const mintAddress = nftAccount.account.data.parsed.info.mint;
-      console.log(`Processing NFT with mint: ${mintAddress}`);
-      
+    // 3) Filter down to NFTs (1 token, 0 decimals)
+    const nftAccounts = parsed.value.filter(acc => {
+      const info = acc.account.data.parsed.info.tokenAmount
+      return info.uiAmount === 1 && info.decimals === 0
+    })
+
+    // 4) For each NFT mint, pull the on‑chain metadata, then fetch and parse the JSON
+    for (const { account } of nftAccounts) {
+      const mintAddress = account.data.parsed.info.mint as string
+
       try {
-        // Get the metadata account
-        const metadataPDA = await getMetadataAccount(new PublicKey(mintAddress));
-        
-        // Get the metadata URI
-        const metadataAccount = await connection.getAccountInfo(metadataPDA);
-        
-        if (metadataAccount) {
-          // Parse the metadata (this is a simplified version)
-          // In a real implementation, you'd need to properly decode the account data
-          // using the Metaplex SDK
-          
-          // For now, we'll fetch the metadata from the URI
-          // This assumes our program stores the URI in a way we can extract
-          const metadataUri = await extractMetadataUri(connection, metadataPDA);
-          console.log(`Metadata URI: ${metadataUri}`);
-          
-          if (metadataUri) {
-            // Convert IPFS URI to HTTP URL if needed
-            const httpUri = metadataUri.startsWith('ipfs://')
-            ? metadataUri.replace('ipfs://', 'https://teal-dry-albatross-975.mypinata.cloud/ipfs/')
-            : metadataUri;
-            // Fetch the metadata from IPFS or wherever it's stored
-            const response = await axios.get(httpUri);
-            const metadata = response.data;
-            console.log(`Metadata:`, metadata);
-            
-            // Check if this is one of our certificates by looking for specific attributes
-            const isCertificate = metadata.attributes && 
-              metadata.attributes.some(attr => attr.trait_type === "Date Issued");
-            
-            if (isCertificate) {
-              // Create a certificate object
-              const recipientName = metadata.attributes.find(
-                attr => attr.trait_type === "Recipient Name"
-              )?.value || "Unknown";
-              
-              const dateIssued = metadata.attributes.find(
-                attr => attr.trait_type === "Date Issued"
-              )?.value || new Date().toLocaleDateString();
-              
-              certificates.push({
-                id: mintAddress,
-                title: metadata.name,
-                issuer: "CertifiSol",
-                issuedTo: recipientName,
-                date: dateIssued,
-                content: metadata.description || "",
-                verified: true,
-                metadata: {
-                  issuerAddress: SOLANA_CONFIG.PROGRAM_ID,
-                  recipientAddress: walletAddress,
-                  mintAddress: mintAddress,
-                  imageUrl: metadata.image
-                }
-              });
-            }
-          }
+        // 4a) Derive the metadata PDA and extract the URI field
+        const metadataPDA = await getMetadataAccount(new PublicKey(mintAddress))
+        const metadataUri = await extractMetadataUri(connection, metadataPDA)
+        if (!metadataUri) continue
+
+        // 4b) Ensure we have an HTTP‐accessible URL
+        const httpUri = metadataUri.startsWith("ipfs://")
+          ? metadataUri.replace(
+              "ipfs://",
+              "https://teal-dry-albatross-975.mypinata.cloud/ipfs/"
+            )
+          : metadataUri
+
+        // 4c) Download the JSON package (either plain or encrypted)
+        const response = await axios.get<EncryptedPayload | any>(httpUri)
+        let metadata = response.data
+
+        // 4d) If it looks encrypted, decrypt it
+        if (isEncrypted(metadata)) {
+          metadata = decryptPayload<{
+            name: string
+            symbol: string
+            description: string
+            attributes: { trait_type: string; value: string }[]
+            imageDataUrl: string
+          }>(metadata as EncryptedPayload)
+
+          // normalize the field name so downstream logic is unchanged
+          metadata.image = metadata.imageDataUrl
         }
-      } catch (error) {
-        console.error(`Error processing NFT ${mintAddress}:`, error);
+
+        // 4e) Validate it’s one of our certificates
+        if (
+          !Array.isArray(metadata.attributes) ||
+          !metadata.attributes.some((a) => a.trait_type === "Date Issued")
+        ) {
+          continue;
+        }
+
+        // 4f) Pull out recipient + date
+        const recipient = metadata.attributes.find(
+          (a) => a.trait_type === "Recipient Name"
+        )?.value;
+        const dateIssued = metadata.attributes.find(
+          (a) => a.trait_type === "Date Issued"
+        )?.value;
+
+        // 4g) Build our Certificate shape
+        certificates.push({
+          id: mintAddress,
+          title: metadata.name,
+          issuer: "CertifiSol",
+          issuedTo: recipient,
+          date: dateIssued,
+          content: metadata.description || "",
+          verified: true,
+          metadata: {
+            issuerAddress: SOLANA_CONFIG.PROGRAM_ID,
+            recipientAddress: walletAddress,
+            mintAddress: mintAddress,
+            imageUrl: metadata.image
+          }
+        })
+      } catch (innerErr) {
+        console.warn(`Skipping NFT ${mintAddress}:`, innerErr)
       }
     }
-    
-    return certificates;
-  } catch (error) {
-    console.error("Error getting certificates:", error);
-    return [];
+  } catch (err) {
+    console.error("Error fetching certificates:", err)
   }
-};
 
+  return certificates
+}
 // Helper function to get the metadata account for a mint
 const getMetadataAccount = async (mintPublicKey: PublicKey): Promise<PublicKey> => {
   const [metadataPDA] = PublicKey.findProgramAddressSync(
@@ -175,66 +209,23 @@ const getMetadataAccount = async (mintPublicKey: PublicKey): Promise<PublicKey> 
 };
 
 // Helper function to extract metadata URI from account data
-// const extractMetadataUri = async (
-//   connection: Connection,
-//   metadataPDA: PublicKey
-// ): Promise<string | null> => {
-//   try {
-//     // Fetch the metadata account data
-//     const accountInfo = await connection.getAccountInfo(metadataPDA);
-    
-//     if (!accountInfo) {
-//       console.error("Metadata account not found");
-//       return null;
-//     }
-    
-//     // Decode the metadata using Metaplex's Metadata class
-//     const metadataData = mplTokenMetadata.deserializeMetadata(accountInfo.data)[0];
-    
-//     // Return the URI from the decoded metadata
-//     return metadataData.data.uri.replace(/\0/g, ''); // Remove null terminators
-//   } catch (error) {
-//     console.error("Error extracting metadata URI:", error);
-//     return null;
-//   }
-// };
-
-
-const extractMetadataUri = async (
+export const extractMetadataUri = async (
   connection: Connection,
   metadataPDA: PublicKey
 ): Promise<string | null> => {
-  try {
-    // Fetch the metadata account data
-    const accountInfo = await connection.getAccountInfo(metadataPDA);
-    
-    if (!accountInfo) {
-      console.error("Metadata account not found");
-      return null;
-    }
-    
-    // Manual parsing of metadata account data
-    const data = accountInfo.data;
-    
-    // Skip key, update authority, and mint (1 + 32 + 32 = 65 bytes)
-    let offset = 65;
-    
-    // Skip name
-    const nameLength = data.readUInt32LE(offset);
-    offset += 4 + nameLength;
-    
-    // Skip symbol
-    const symbolLength = data.readUInt32LE(offset);
-    offset += 4 + symbolLength;
-    
-    // Read URI
-    const uriLength = data.readUInt32LE(offset);
-    offset += 4;
-    
-    // Extract URI as string and remove null terminators
-    return data.slice(offset, offset + uriLength).toString('utf8').replace(/\0/g, '');
-  } catch (error) {
-    console.error("Error extracting metadata URI:", error);
-    return null;
-  }
+  const info = await connection.getAccountInfo(metadataPDA);
+  if (!info) return null;
+
+  // build the exact RpcAccount shape mpl-token-metadata expects
+  const rpcAccount = {
+    data: info.data,                                  // Uint8Array
+    executable: info.executable,                      // boolean
+    lamports: toSolAmount(info.lamports),             // SolAmount
+    owner: toUmiPublicKey(info.owner.toBase58()),     // Umi PublicKey
+    publicKey: toUmiPublicKey(metadataPDA.toBase58()),// Umi PublicKey
+    rentEpoch: BigInt((info as any).rentEpoch || 0),  // bigint
+  };
+
+  const metadata = deserializeMetadata(rpcAccount);
+  return metadata.uri.replace(/\0/g, "").trim();
 };
