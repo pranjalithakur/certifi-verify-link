@@ -3,7 +3,7 @@ import { Connection, PublicKey} from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import idl from '../idl/solana_nft_anchor_hackernoon.json';
 import axios from "axios";
-import { PINATA_CONFIG, SOLANA_CONFIG } from "@/config";
+import { PINATA_CONFIG, SOLANA_CONFIG, ALLOWED_ISSUER_ADDRESSES } from "@/config";
 import {
   mplTokenMetadata,
   deserializeMetadata,
@@ -57,9 +57,35 @@ export const verifyCertificate = async (mintAddress: string): Promise<boolean> =
     
     // Fetch the account info
     const accountInfo = await connection.getAccountInfo(metadataPDA);
-    
+
+    if (!accountInfo) {
+      console.warn(`No metadata account found for mint ${mintAddress}`);
+      return false;
+    }
+
+    const rpcAccount = {
+      data: accountInfo.data,
+      executable: accountInfo.executable,
+      lamports: toSolAmount(accountInfo.lamports),
+      owner: toUmiPublicKey(accountInfo.owner.toBase58()),
+      publicKey: toUmiPublicKey(metadataPDA.toBase58()),
+      rentEpoch: BigInt((accountInfo as any).rentEpoch || 0),
+    };
+
+    // 4) decode the metadata
+    const meta = deserializeMetadata(rpcAccount);
+
+    // 5) check that updateAuthority is in your allow‑list
+    if (!ALLOWED_ISSUER_ADDRESSES.includes(meta.updateAuthority)) {
+      console.warn(
+        `Untrusted issuer ${meta.updateAuthority} for certificate ${mintAddress}`
+      );
+      return false;
+    }
+
+    return true;
     // If account info exists, the certificate is valid
-    return accountInfo !== null;
+    // return accountInfo !== null;
   } catch (error) {
     console.error("Error verifying certificate:", error);
     return false;
