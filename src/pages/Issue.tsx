@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { Connection, PublicKey, Keypair, Transaction } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createTransferInstruction } from "@solana/spl-token";
 import {
   findMetadataPda,
   findMasterEditionPda,
@@ -240,6 +240,38 @@ const Issue = () => {
       setTxSignature(tx);
       setMintAddress(mint.publicKey.toString());
       // alert(`Certificate NFT minted successfully!\nView at: https://explorer.solana.com/tx/${tx}?cluster=devnet`);
+
+      // ------------------ transfer NFT to the recipient ------------------
+      if (formData.recipientAddress) {
+        // derive both ATAs
+        const issuerAta     = await getAssociatedTokenAddress(mint.publicKey, wallet.publicKey);
+        const recipientPk   = new PublicKey(formData.recipientAddress);
+        const recipientAta  = await getAssociatedTokenAddress(mint.publicKey, recipientPk);
+
+        // build a transfer tx: create recipient ATA (noop if exists) + transfer 1 token
+        const transferTx = new Transaction().add(
+          createAssociatedTokenAccountInstruction(
+            wallet.publicKey,   // payer
+            recipientAta,       // ata to create (if needed)
+            recipientPk,        // owner of that ata
+            mint.publicKey      // mint
+          ),
+          createTransferInstruction(
+            issuerAta,          // source (your ATA)
+            recipientAta,       // dest (their ATA)
+            wallet.publicKey,   // authority over source
+            1,                  // amount
+            [],                 // multisig (none)
+            TOKEN_PROGRAM_ID
+          )
+        );
+
+        // send & confirm via the wallet adapter
+        const transferSig = await wallet.sendTransaction(transferTx, connection!);
+        const { blockhash, lastValidBlockHeight } = await connection!.getLatestBlockhash("confirmed");
+
+        await connection!.confirmTransaction({ signature: transferSig, blockhash, lastValidBlockHeight }, "confirmed");
+      }
     } catch (err) {
       console.error("Error issuing certificate:", err);
       alert("Minting failed: " + err);
