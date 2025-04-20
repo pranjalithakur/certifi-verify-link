@@ -25,4 +25,4 @@ dist-ssr
 
 .env
 .env.local
-./src/config.ts
+# ./src/config.ts
