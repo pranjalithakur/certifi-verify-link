@@ -110,10 +110,10 @@ const CertificateGenerator: React.FC<CertificateGeneratorProps> = ({
               <p className="font-medium">{date}</p>
             </div>
             
-            <div className="flex flex-col items-center">
+            {/* <div className="flex flex-col items-center">
               <div className="w-40 h-[2px] bg-black mb-2"></div>
               <p className="font-medium">Authorized Signature</p>
-            </div>
+            </div> */}
             
             <div className="text-right">
               <p className="text-sm text-gray-500">Recipient Address</p>

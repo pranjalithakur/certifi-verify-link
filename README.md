@@ -117,7 +117,7 @@ npm run dev
 ```
 
 ## 📁 Folder Structure
-
+```
 ├── public/ # Static assets (SVGs, robots.txt, favicon)
 ├── src/
 │ ├── assets/ # Images, icons
@@ -135,3 +135,4 @@ npm run dev
 ├── vite.config.ts # Vite config
 ├── package.json
 └── README.md
+```
